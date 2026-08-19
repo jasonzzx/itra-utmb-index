@@ -30,6 +30,7 @@ export default function MyRunnersPage() {
           runners={runners}
           onRemove={remove}
           emptyMessage="You're not following anyone yet."
+          exportMeta={{ defaultName: 'My Runners', defaultSlug: 'my-runners' }}
         />
       )}
     </>

@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { RunnerCard } from './RunnerCard';
+import { ExportSheet, type ExportMetaDefaults } from './ExportSheet';
 import { useRunnerIndexes } from '@/hooks/useRunnerIndexes';
 import type { RunnerRef } from '@/lib/types';
 
@@ -9,12 +11,16 @@ export function RunnerListView({
   runners,
   onRemove,
   emptyMessage,
+  exportMeta,
 }: {
   runners: RunnerRef[];
   onRemove?: (id: string) => void;
   emptyMessage?: string;
+  /** Omit to hide the export button. */
+  exportMeta?: ExportMetaDefaults;
 }) {
   const { indexes, loading, error, refresh } = useRunnerIndexes(runners);
+  const [exporting, setExporting] = useState(false);
 
   if (runners.length === 0) {
     return (
@@ -29,13 +35,26 @@ export function RunnerListView({
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+      <div className="toolbar">
+        {exportMeta && (
+          <button className="text-btn" onClick={() => setExporting((v) => !v)}>
+            {exporting ? 'Close' : 'Export'}
+          </button>
+        )}
         <button className="icon-btn" onClick={refresh} disabled={loading} aria-label="Refresh">
           <span className={loading ? 'spin' : undefined} aria-hidden>
             ↻
           </span>
         </button>
       </div>
+
+      {exporting && exportMeta && (
+        <ExportSheet
+          runners={runners}
+          defaults={exportMeta}
+          onClose={() => setExporting(false)}
+        />
+      )}
 
       {error && <div className="banner">Couldn&apos;t refresh: {error}</div>}
 

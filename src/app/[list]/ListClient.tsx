@@ -52,6 +52,11 @@ export function ListClient({ slug, seed }: { slug: string; seed: RunnerList }) {
           runners={runners}
           onRemove={remove}
           emptyMessage="This list is empty."
+          exportMeta={{
+            defaultName: seed.name,
+            defaultDescription: seed.description,
+            defaultSlug: slug,
+          }}
         />
       )}
     </>
