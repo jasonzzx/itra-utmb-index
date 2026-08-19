@@ -1,0 +1,12 @@
+{
+  "name": "Trail Index",
+  "short_name": "Trail Index",
+  "description": "Track the ITRA and UTMB index of the trail runners you follow.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0e1116",
+  "theme_color": "#0e1116",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

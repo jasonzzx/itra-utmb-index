@@ -1,0 +1,12 @@
+{
+  "name": "CRIT",
+  "description": "Sample roster — replace with your own crew",
+  "runners": [
+    { "name": "Jim Walmsley", "itraRunnerId": 485740, "utmbId": 485740 },
+    { "name": "Kilian Jornet", "itraRunnerId": 2704, "utmbId": 2704 },
+    { "name": "Mathieu Blanchard", "itraRunnerId": 1064397, "utmbId": 1064397 },
+    { "name": "Katie Schide", "itraRunnerId": 671487, "utmbId": 671487 },
+    { "name": "Courtney Dauwalter", "itraRunnerId": 30959, "utmbId": 30959 },
+    { "name": "Ruth Croft", "itraRunnerId": 362813, "utmbId": 362813 }
+  ]
+}
