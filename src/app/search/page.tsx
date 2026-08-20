@@ -9,8 +9,7 @@ import type { ItraIndex, RunnerRef, UtmbIndex } from '@/lib/types';
 interface SearchResponse {
   itra?: ItraIndex[];
   utmb?: UtmbIndex[];
-  pageSize?: number;
-  hasMore?: { itra: boolean; utmb: boolean };
+  truncated?: { itra: boolean; utmb: boolean };
   errors?: { itra: string | null; utmb: string | null };
 }
 
@@ -18,39 +17,35 @@ const NO_ERRORS = { itra: null, utmb: null };
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
-  const [itraPages, setItraPages] = useState<ItraIndex[][]>([]);
-  const [utmbPages, setUtmbPages] = useState<UtmbIndex[][]>([]);
-  const [hasMore, setHasMore] = useState({ itra: false, utmb: false });
-  const [pageSize, setPageSize] = useState(25);
+  const [itra, setItra] = useState<ItraIndex[]>([]);
+  const [utmb, setUtmb] = useState<UtmbIndex[]>([]);
+  const [truncated, setTruncated] = useState(false);
   const [errors, setErrors] = useState<{ itra: string | null; utmb: string | null }>(NO_ERRORS);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState<RunnerRef[]>([]);
 
-  // Aborts whatever is in flight — a new query, or a superseded Load more.
+  // Aborts the request in flight when the query changes under it.
   const inFlight = useRef<AbortController | null>(null);
 
   useEffect(() => setSaved(readPersonal()), []);
 
-  const fetchPage = useCallback(async (q: string, offset: number) => {
+  const runSearch = useCallback(async (q: string) => {
     inFlight.current?.abort();
     const controller = new AbortController();
     inFlight.current = controller;
 
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/search?q=${encodeURIComponent(q)}&offset=${offset}`,
-        { signal: controller.signal },
-      );
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, {
+        signal: controller.signal,
+      });
       const body = (await res.json()) as SearchResponse;
       if (controller.signal.aborted) return;
 
-      setPageSize(body.pageSize ?? 25);
-      setHasMore(body.hasMore ?? { itra: false, utmb: false });
+      setItra(body.itra ?? []);
+      setUtmb(body.utmb ?? []);
+      setTruncated(Boolean(body.truncated?.itra || body.truncated?.utmb));
       setErrors(body.errors ?? NO_ERRORS);
-      // offset 0 replaces; anything else appends a page.
-      setItraPages((prev) => (offset === 0 ? [body.itra ?? []] : [...prev, body.itra ?? []]));
-      setUtmbPages((prev) => (offset === 0 ? [body.utmb ?? []] : [...prev, body.utmb ?? []]));
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         setErrors({ itra: 'Search failed', utmb: 'Search failed' });
@@ -65,31 +60,26 @@ export default function SearchPage() {
     const q = query.trim();
     if (q.length < 2) {
       inFlight.current?.abort();
-      setItraPages([]);
-      setUtmbPages([]);
-      setHasMore({ itra: false, utmb: false });
+      setItra([]);
+      setUtmb([]);
+      setTruncated(false);
       setErrors(NO_ERRORS);
       setLoading(false);
       return;
     }
-    const timer = setTimeout(() => void fetchPage(q, 0), 350);
+    const timer = setTimeout(() => void runSearch(q), 350);
     return () => clearTimeout(timer);
-  }, [query, fetchPage]);
+  }, [query, runSearch]);
 
   const candidates = useMemo(
-    () => pairPages(itraPages, utmbPages, query.trim()),
-    [itraPages, utmbPages, query],
+    () => pairPages(itra, utmb, query.trim()),
+    [itra, utmb, query],
   );
 
   // Index of the first demoted row, so a divider can mark where the runners
-  // that match everything you typed stop.
+  // matching everything you typed stop.
   const firstWeakIndex = candidates.findIndex((c) => !c.strong);
   const showDivider = firstWeakIndex > 0;
-
-  // Pages fetched so far — the next offset, not the number of rows shown,
-  // since the two sources are paged in lockstep.
-  const pagesLoaded = Math.max(itraPages.length, utmbPages.length);
-  const moreAvailable = hasMore.itra || hasMore.utmb;
 
   function isAdded(c: Candidate): boolean {
     return saved.some(
@@ -150,38 +140,37 @@ export default function SearchPage() {
             {showDivider && i === firstWeakIndex && (
               <div className="group-divider">Other results</div>
             )}
-          <button
-            className="result"
-            data-added={added}
-            onClick={() => add(c)}
-            disabled={added}
-          >
-            <div className="who">
-              <div className="name">{prettyName(c.name)}</div>
-              <div className="meta">
-                {[
-                  c.itra ? `ITRA ${c.itra.pi}` : 'no ITRA match',
-                  c.utmb ? `UTMB ${c.utmb.ip}` : 'no UTMB match',
-                  c.itra?.nationality || c.utmb?.nationality,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
+            <button
+              className="result"
+              data-added={added}
+              onClick={() => add(c)}
+              disabled={added}
+            >
+              <div className="who">
+                <div className="name">{prettyName(c.name)}</div>
+                <div className="meta">
+                  {[
+                    // An index of 0 means the runner has no index, not a zero
+                    // score, so it reads as "no index" rather than "0".
+                    c.itra ? (c.itra.pi ? `ITRA ${c.itra.pi}` : 'ITRA —') : 'no ITRA match',
+                    c.utmb ? (c.utmb.ip ? `UTMB ${c.utmb.ip}` : 'UTMB —') : 'no UTMB match',
+                    c.itra?.nationality || c.utmb?.nationality,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
               </div>
-            </div>
-            <span className="score">{added ? '✓' : '+'}</span>
-          </button>
+              <span className="score">{added ? '✓' : '+'}</span>
+            </button>
           </div>
         );
       })}
 
-      {moreAvailable && candidates.length > 0 && (
-        <button
-          className="load-more"
-          onClick={() => void fetchPage(query.trim(), pagesLoaded * pageSize)}
-          disabled={loading}
-        >
-          {loading ? 'Loading…' : 'Load more'}
-        </button>
+      {truncated && candidates.length > 0 && (
+        <p className="tail-note">
+          Showing the {candidates.length} closest matches. Add a first name to
+          narrow it down.
+        </p>
       )}
     </>
   );

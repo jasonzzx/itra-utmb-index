@@ -1,5 +1,5 @@
 import { cacheLife, cacheTag } from 'next/cache';
-import { fetchItraIndex, searchItra } from './itra';
+import { fetchItraIndex, searchItraWindow } from './itra';
 import { fetchUtmbAllCategories, fetchUtmbIndex, searchUtmb } from './utmb';
 import type { ItraIndex, UtmbCategory, UtmbIndex } from './types';
 
@@ -72,21 +72,19 @@ export async function cachedUtmbCategories(
 export async function cachedItraSearch(
   query: string,
   limit: number,
-  offset: number,
 ): Promise<ItraIndex[]> {
   'use cache';
-  cacheTag('search', `search:itra:${query}:${offset}`);
+  cacheTag('search', `search:itra:${query}`);
   cacheLife(SEARCH_LIFE);
-  return searchItra(query, limit, offset);
+  return searchItraWindow(query, limit);
 }
 
 export async function cachedUtmbSearch(
   query: string,
   limit: number,
-  offset: number,
 ): Promise<UtmbIndex[]> {
   'use cache';
-  cacheTag('search', `search:utmb:${query}:${offset}`);
+  cacheTag('search', `search:utmb:${query}`);
   cacheLife(SEARCH_LIFE);
-  return searchUtmb(query, 'general', limit, offset);
+  return searchUtmb(query, 'general', limit);
 }

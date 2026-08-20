@@ -27,7 +27,7 @@ vi.mock('@/lib/http', () => ({
   resetOutboundDispatcher: () => {},
 }));
 
-const { searchItra, fetchItraIndex, decryptResponse, resetItraSession, ItraChallengedError } =
+const { searchItra, searchItraWindow, fetchItraIndex, decryptResponse, resetItraSession, ItraChallengedError } =
   await import('@/lib/itra');
 
 beforeEach(() => {
@@ -213,5 +213,91 @@ describe('fetchItraIndex', () => {
       .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
       .mockResolvedValueOnce(res(fixture));
     expect(await fetchItraIndex('anything', 12345)).toBeNull();
+  });
+});
+
+describe('searchItraWindow', () => {
+  /** A decrypted payload holding `n` distinct runners. */
+  function pageOf(n: number, from = 0) {
+    return {
+      ResultCount: 999,
+      Results: Array.from({ length: n }, (_, i) => ({
+        RunnerId: from + i,
+        FirstName: `R${from + i}`,
+        LastName: 'TEST',
+        Nationality: 'ES',
+        Code: '',
+        Gender: 'Male',
+        AgeGroup: ' 35-39',
+        RecentRaces: '',
+        ProfilePic: '',
+        Pi: 500,
+        PiIndex: 'Expert 1',
+        ColorCode: '#000',
+      })),
+    };
+  }
+
+  /** Encrypt like ITRA does, so the window goes through the real decrypt path. */
+  async function encrypted(payload: unknown) {
+    const { webcrypto } = await import('node:crypto');
+    const key = webcrypto.getRandomValues(new Uint8Array(32));
+    const iv = webcrypto.getRandomValues(new Uint8Array(16));
+    const ck = await webcrypto.subtle.importKey('raw', key, { name: 'AES-CBC' }, false, ['encrypt']);
+    const ct = await webcrypto.subtle.encrypt(
+      { name: 'AES-CBC', iv },
+      ck,
+      new TextEncoder().encode(JSON.stringify(payload)),
+    );
+    return {
+      response1: Buffer.from(ct).toString('base64'),
+      response2: Buffer.from(iv).toString('base64'),
+      response3: Buffer.from(key).toString('base64'),
+    };
+  }
+
+  function starts(): number[] {
+    return outboundFetch.mock.calls
+      .filter((c) => c[1]?.method === 'POST')
+      .map((c) => Number(new URLSearchParams(String(c[1].body)).get('start')));
+  }
+
+  it('requests consecutive offsets across the 49-row cap', async () => {
+    outboundFetch.mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }));
+    for (let i = 0; i < 3; i++) {
+      outboundFetch.mockResolvedValueOnce(res(await encrypted(pageOf(49, i * 49))));
+    }
+
+    const out = await searchItraWindow('croft', 147);
+
+    expect(starts()).toEqual([0, 49, 98]);
+    expect(out).toHaveLength(147);
+    // Concatenated in offset order, not whichever request resolved first.
+    expect(out[0].runnerId).toBe(0);
+    expect(out[49].runnerId).toBe(49);
+  });
+
+  it('stops at a short page and discards anything past it', async () => {
+    outboundFetch.mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }));
+    outboundFetch.mockResolvedValueOnce(res(await encrypted(pageOf(49, 0))));
+    outboundFetch.mockResolvedValueOnce(res(await encrypted(pageOf(10, 49)))); // short → end
+    outboundFetch.mockResolvedValueOnce(res(await encrypted(pageOf(49, 100)))); // must be ignored
+
+    const out = await searchItraWindow('croft', 147);
+
+    expect(out).toHaveLength(59);
+    expect(out.some((r) => r.runnerId >= 100)).toBe(false);
+  });
+
+  it('never returns more than asked for', async () => {
+    outboundFetch.mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }));
+    outboundFetch.mockResolvedValue(res(await encrypted(pageOf(49, 0))));
+    expect(await searchItraWindow('croft', 20)).toHaveLength(20);
+  });
+
+  it('skips the network for a query ITRA would reject', async () => {
+    expect(await searchItraWindow('a', 100)).toEqual([]);
+    expect(await searchItraWindow('croft', 0)).toEqual([]);
+    expect(outboundFetch).not.toHaveBeenCalled();
   });
 });

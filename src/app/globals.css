@@ -522,21 +522,6 @@ input {
   border: none;
 }
 
-.load-more {
-  display: block;
-  width: 100%;
-  margin: 6px 0 4px;
-  padding: 12px;
-  border-radius: 11px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  font-size: 13.5px;
-  font-weight: 620;
-  color: var(--accent);
-}
-
-.load-more:active { transform: scale(0.98); }
-.load-more[disabled] { opacity: 0.6; color: var(--text-dim); }
 
 .group-divider {
   margin: 14px 0 8px;
@@ -545,4 +530,13 @@ input {
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-dim);
+}
+
+.tail-note {
+  margin: 16px 0 4px;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  text-align: center;
 }

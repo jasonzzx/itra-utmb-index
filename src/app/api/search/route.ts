@@ -2,20 +2,20 @@ import { NextResponse } from 'next/server';
 import { cachedItraSearch, cachedUtmbSearch } from '@/lib/cache';
 
 /**
- * Rows fetched per source per page. Comfortably under ITRA's hard cap of 49
- * rows per request, and small enough to keep the payload light on mobile.
+ * How wide a net one search casts. There is no "Load more" — a search fetches
+ * this much in a single round trip and ranks it.
+ *
+ * These are windows, not totals. A bare common surname has far more matches
+ * than anyone will scroll: "garcia" is 21,594 on ITRA and 23,310 on UTMB, and
+ * ITRA's 49-row-per-request ceiling would make fetching that 441 sequential
+ * requests. A full-name search — the case that matters — returns 1 ITRA row,
+ * so the window only ever truncates the tail nobody reads.
  */
-export const PAGE_SIZE = 25;
-
-/**
- * Ceiling on how deep paging can go. Both APIs report unreliable totals, so
- * this is what stops a client walking the offset forever.
- */
-const MAX_OFFSET = 500;
+const ITRA_WINDOW = 250; // 5 parallel requests against ITRA's 49-row cap
+const UTMB_WINDOW = 500; // a single request; UTMB serves thousands per call
 
 export async function GET(request: Request) {
-  const params = new URL(request.url).searchParams;
-  const query = params.get('q')?.trim() ?? '';
+  const query = new URL(request.url).searchParams.get('q')?.trim() ?? '';
 
   // ITRA rejects queries shorter than 2 characters outright.
   if (query.length < 2) {
@@ -25,19 +25,10 @@ export async function GET(request: Request) {
     );
   }
 
-  const rawOffset = params.get('offset');
-  const offset = rawOffset ? Number(rawOffset) : 0;
-  if (!Number.isInteger(offset) || offset < 0 || offset > MAX_OFFSET) {
-    return NextResponse.json(
-      { error: `offset must be an integer between 0 and ${MAX_OFFSET}` },
-      { status: 400 },
-    );
-  }
-
   // Each source is settled independently so one outage still returns the other.
   const [itra, utmb] = await Promise.allSettled([
-    cachedItraSearch(query, PAGE_SIZE, offset),
-    cachedUtmbSearch(query, PAGE_SIZE, offset),
+    cachedItraSearch(query, ITRA_WINDOW),
+    cachedUtmbSearch(query, UTMB_WINDOW),
   ]);
 
   const itraRows = itra.status === 'fulfilled' ? itra.value : [];
@@ -45,16 +36,13 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     query,
-    offset,
-    pageSize: PAGE_SIZE,
     itra: itraRows,
     utmb: utmbRows,
-    // Neither API reports a total we can trust — ITRA's ResultCount disagrees
-    // with reality and UTMB's nbHits shifts with the page size — so a full
-    // page coming back is the only sound signal that more exists.
-    hasMore: {
-      itra: itraRows.length === PAGE_SIZE && offset + PAGE_SIZE <= MAX_OFFSET,
-      utmb: utmbRows.length === PAGE_SIZE && offset + PAGE_SIZE <= MAX_OFFSET,
+    // A full window means there were more results than we asked for. Reported
+    // so the UI can say so honestly rather than implying the list is complete.
+    truncated: {
+      itra: itraRows.length >= ITRA_WINDOW,
+      utmb: utmbRows.length >= UTMB_WINDOW,
     },
     errors: {
       itra: itra.status === 'rejected' ? String(itra.reason?.message ?? itra.reason) : null,

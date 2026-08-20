@@ -5,24 +5,24 @@ import type { ItraIndex, UtmbIndex } from './types';
  * One person, as assembled from whichever sources found them.
  *
  * Search hits arrive from ITRA and UTMB independently and in different orders,
- * so the same runner can turn up on ITRA page 1 and UTMB page 3. Pairing runs
- * over every page fetched so far, which is what keeps them as a single row.
+ * so the same runner can appear in both lists at different positions. Pairing
+ * merges them into a single row.
  */
 export interface Candidate {
   key: string;
   name: string;
   itra?: ItraIndex;
   utmb?: UtmbIndex;
-  /** Page this runner first appeared on, from either source. */
-  page: number;
   /**
-   * Ranking score, frozen once the page it appeared on is fully merged.
+   * Position this runner held in its source's own result list — the earlier of
+   * the two when both found them.
    *
-   * It has to be frozen: if it were recomputed live, pairing in a UTMB result
-   * from a later page would change a row's score and re-sort it within its own
-   * page — moving a row the reader is already looking at.
+   * This is the base ordering, and it matters: both APIs rank by name
+   * relevance, and UTMB in particular puts the runner you typed at position 0.
+   * Sorting by index instead (as this used to) discards that and buries an
+   * exact match under higher-indexed strangers who share a first name.
    */
-  rank: number;
+  order: number;
   /** True when this runner matches what was actually typed. */
   strong: boolean;
   /** Match quality, used to order within the strong group. */
@@ -35,91 +35,75 @@ export function norm(name: string): string {
 }
 
 /**
- * Merge accumulated pages of ITRA and UTMB results into one row per person.
+ * Merge ITRA and UTMB results into one row per person.
  *
- * Ordering is `(page asc, rank desc)`: strongest first *within* a page, pages in
- * the order they were loaded, so tapping "Load more" only ever appends.
+ * Ordering is `(strong desc, tier desc, order asc)`: runners matching the typed
+ * name first, then everyone else in the order the sources returned them.
  *
- * Both sources are walked page by page in lockstep rather than one source
- * entirely then the other. Draining ITRA first would let a runner who is on
- * ITRA page 1 but UTMB page 0 be attributed to the wrong page, and they would
- * visibly jump once the second page loaded.
+ * The two lists are walked in lockstep, position by position, rather than one
+ * source entirely then the other — draining ITRA first would give every ITRA
+ * runner a better position than any UTMB-only runner regardless of relevance.
  *
  * Matching is by runner id first — UTMB reuses ITRA's ids in practice — and
  * falls back to a normalized name so pairing still works when they diverge.
- *
- * Runners who match the typed name are lifted into a strong group above all of
- * that: UTMB matches any single word, so ranking by index alone buries a
- * low-index runner under high-index strangers sharing a first name. The strong
- * group is the one place ordering may change as pages load — see isStrongMatch
- * for why that cannot happen on a single-word query.
  */
 export function pairPages(
-  itraPages: ItraIndex[][],
-  utmbPages: UtmbIndex[][],
+  itraResults: ItraIndex[],
+  utmbResults: UtmbIndex[],
   query = '',
 ): Candidate[] {
   const byId = new Map<number, Candidate>();
   const byName = new Map<string, Candidate>();
   const out: Candidate[] = [];
-  const pageCount = Math.max(itraPages.length, utmbPages.length);
+  const depth = Math.max(itraResults.length, utmbResults.length);
 
-  for (let page = 0; page < pageCount; page++) {
-    const createdHere: Candidate[] = [];
-
-    for (const r of itraPages[page] ?? []) {
-      const existing = byId.get(r.runnerId) ?? byName.get(norm(r.name));
+  for (let i = 0; i < depth; i++) {
+    const itra = itraResults[i];
+    if (itra) {
+      const existing = byId.get(itra.runnerId) ?? byName.get(norm(itra.name));
       if (existing) {
-        // Already has ITRA data: the source repeated a row across pages.
-        // Otherwise this is the ITRA half of a runner UTMB found first.
+        // Already has ITRA data: the source repeated a row. Otherwise this is
+        // the ITRA half of a runner UTMB listed first.
         if (!existing.itra) {
-          existing.itra = r;
-          byId.set(r.runnerId, existing);
+          existing.itra = itra;
+          byId.set(itra.runnerId, existing);
         }
-        continue;
+      } else {
+        const c: Candidate = {
+          key: `itra:${itra.runnerId}`,
+          name: itra.name,
+          itra,
+          order: i,
+          strong: false,
+          tier: 0,
+        };
+        byId.set(itra.runnerId, c);
+        byName.set(norm(itra.name), c);
+        out.push(c);
       }
-      const c: Candidate = {
-        key: `itra:${r.runnerId}`,
-        name: r.name,
-        itra: r,
-        page,
-        rank: 0,
-        strong: false,
-        tier: 0,
-      };
-      byId.set(r.runnerId, c);
-      byName.set(norm(r.name), c);
-      out.push(c);
-      createdHere.push(c);
     }
 
-    for (const r of utmbPages[page] ?? []) {
-      const match = byId.get(r.id) ?? byName.get(norm(r.name));
-      if (match) {
-        if (!match.utmb) {
-          match.utmb = r;
-          byId.set(r.id, match);
+    const utmb = utmbResults[i];
+    if (utmb) {
+      const existing = byId.get(utmb.id) ?? byName.get(norm(utmb.name));
+      if (existing) {
+        if (!existing.utmb) {
+          existing.utmb = utmb;
+          byId.set(utmb.id, existing);
         }
-        continue;
+      } else {
+        const c: Candidate = {
+          key: `utmb:${utmb.id}`,
+          name: utmb.name,
+          utmb,
+          order: i,
+          strong: false,
+          tier: 0,
+        };
+        byId.set(utmb.id, c);
+        byName.set(norm(utmb.name), c);
+        out.push(c);
       }
-      const c: Candidate = {
-        key: `utmb:${r.id}`,
-        name: r.name,
-        utmb: r,
-        page,
-        rank: 0,
-        strong: false,
-        tier: 0,
-      };
-      byId.set(r.id, c);
-      byName.set(norm(r.name), c);
-      out.push(c);
-      createdHere.push(c);
-    }
-
-    // Freeze ranking now that this page is fully merged from both sources.
-    for (const c of createdHere) {
-      c.rank = Math.max(c.itra?.pi ?? 0, c.utmb?.ip ?? 0);
     }
   }
 
@@ -134,8 +118,7 @@ export function pairPages(
   return out.sort(
     (a, b) =>
       Number(b.strong) - Number(a.strong) ||
-      (a.strong
-        ? b.tier - a.tier || b.rank - a.rank
-        : a.page - b.page || b.rank - a.rank),
+      b.tier - a.tier ||
+      a.order - b.order,
   );
 }

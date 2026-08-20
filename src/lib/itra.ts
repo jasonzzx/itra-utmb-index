@@ -239,6 +239,40 @@ export async function searchItra(
 }
 
 /**
+ * Fetch up to `want` runners by issuing parallel requests across ITRA's 49-row
+ * ceiling.
+ *
+ * The pages go out together rather than in sequence because they share one held
+ * CSRF session — four concurrent requests measured 0.85s total. A page that
+ * comes back short means the result set ended, so everything past it is
+ * discarded rather than trusted: ITRA's own `ResultCount` disagrees with the
+ * true total (it reports 147 for "croft" where reads succeed to 149).
+ */
+export async function searchItraWindow(
+  name: string,
+  want: number,
+): Promise<ItraIndex[]> {
+  if (name.trim().length < 2 || want <= 0) return [];
+
+  const pageCount = Math.ceil(want / ITRA_MAX_PAGE);
+  // Warm the session once so the parallel requests don't each handshake.
+  await getSession();
+
+  const pages = await Promise.all(
+    Array.from({ length: pageCount }, (_, i) =>
+      searchItra(name, ITRA_MAX_PAGE, i * ITRA_MAX_PAGE),
+    ),
+  );
+
+  const out: ItraIndex[] = [];
+  for (const page of pages) {
+    out.push(...page);
+    if (page.length < ITRA_MAX_PAGE) break; // end of the result set
+  }
+  return out.slice(0, want);
+}
+
+/**
  * ITRA's per-runner endpoints require auth (401), so a pinned runner is
  * refreshed by re-searching their name and matching on RunnerId.
  */
