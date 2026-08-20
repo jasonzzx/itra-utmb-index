@@ -57,6 +57,14 @@ interface ItraSession {
 const SESSION_TTL_MS = 5 * 60_000;
 let cachedSession: ItraSession | null = null;
 
+/**
+ * ITRA refuses to return more than 49 rows however large `count` is
+ * (count=100 and count=200 both yield 49), so bigger pages have to be reached
+ * with `start` instead.
+ */
+const ITRA_MAX_COUNT = 50;
+export const ITRA_MAX_PAGE = ITRA_MAX_COUNT - 1;
+
 /** Raw runner record as it appears inside the decrypted ITRA payload. */
 interface ItraRawRunner {
   RunnerId: number;
@@ -142,13 +150,14 @@ async function getSession(forceFresh = false): Promise<ItraSession> {
 async function postSearch(
   name: string,
   count: number,
+  start: number,
   session: ItraSession,
 ): Promise<Response> {
   // `nationality` must be present even when empty — omitting it yields a 400.
   const body = new URLSearchParams({
     name,
     nationality: '',
-    start: '0',
+    start: String(start),
     count: String(count),
     echoToken: '1',
   });
@@ -200,16 +209,22 @@ function toIndex(raw: ItraRawRunner): ItraIndex {
 export async function searchItra(
   name: string,
   count = 10,
+  start = 0,
 ): Promise<ItraIndex[]> {
   if (name.trim().length < 2) return [];
 
+  // ITRA returns one fewer row than `count` asks for — measured at
+  // count=3→2, 6→5, 26→25, 50→49 — so request one extra and trim. Above
+  // ITRA_MAX_COUNT the server caps the page regardless of what we send.
+  const requested = Math.min(count + 1, ITRA_MAX_COUNT);
+
   let session = await getSession();
-  let res = await postSearch(name, count, session);
+  let res = await postSearch(name, requested, start, session);
 
   if (res.status === 400 || res.status === 403) {
     cachedSession = null;
     session = await getSession(true);
-    res = await postSearch(name, count, session);
+    res = await postSearch(name, requested, start, session);
   }
   assertNotChallenged(res);
   if (!res.ok) {
@@ -220,7 +235,7 @@ export async function searchItra(
   const decoded = (await decryptResponse(payload)) as {
     Results?: ItraRawRunner[];
   };
-  return (decoded.Results ?? []).map(toIndex);
+  return (decoded.Results ?? []).slice(0, count).map(toIndex);
 }
 
 /**

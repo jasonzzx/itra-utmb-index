@@ -69,16 +69,24 @@ export async function cachedUtmbCategories(
   return fetchUtmbAllCategories(name, id);
 }
 
-export async function cachedItraSearch(query: string): Promise<ItraIndex[]> {
+export async function cachedItraSearch(
+  query: string,
+  limit: number,
+  offset: number,
+): Promise<ItraIndex[]> {
   'use cache';
-  cacheTag('search', `search:itra:${query}`);
+  cacheTag('search', `search:itra:${query}:${offset}`);
   cacheLife(SEARCH_LIFE);
-  return searchItra(query, 10);
+  return searchItra(query, limit, offset);
 }
 
-export async function cachedUtmbSearch(query: string): Promise<UtmbIndex[]> {
+export async function cachedUtmbSearch(
+  query: string,
+  limit: number,
+  offset: number,
+): Promise<UtmbIndex[]> {
   'use cache';
-  cacheTag('search', `search:utmb:${query}`);
+  cacheTag('search', `search:utmb:${query}:${offset}`);
   cacheLife(SEARCH_LIFE);
-  return searchUtmb(query, 'general', 10);
+  return searchUtmb(query, 'general', limit, offset);
 }

@@ -48,13 +48,14 @@ export async function searchUtmb(
   name: string,
   category: UtmbCategory = 'general',
   limit = 10,
+  offset = 0,
 ): Promise<UtmbIndex[]> {
   if (name.trim().length < 2) return [];
 
   const url = new URL(SEARCH_API);
   url.searchParams.set('category', category);
   url.searchParams.set('limit', String(limit));
-  url.searchParams.set('offset', '0');
+  url.searchParams.set('offset', String(offset));
   url.searchParams.set('search', name);
 
   const res = await outboundFetch(url, { cache: 'no-store' });

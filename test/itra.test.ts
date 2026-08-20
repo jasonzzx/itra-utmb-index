@@ -142,6 +142,63 @@ describe('searchItra', () => {
   });
 });
 
+describe('paging', () => {
+  function body(callIndex: number): URLSearchParams {
+    return new URLSearchParams(String(outboundFetch.mock.calls[callIndex][1].body));
+  }
+
+  it('asks for one more row than requested, because ITRA returns count - 1', async () => {
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(fixture));
+
+    await searchItra('croft', 25);
+
+    expect(body(1).get('count')).toBe('26');
+  });
+
+  it('trims the extra row so callers get exactly what they asked for', async () => {
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(fixture)); // fixture holds 2 runners
+
+    // Asking for 1 must yield 1, not the 2 the payload happens to contain.
+    expect(await searchItra('croft', 1)).toHaveLength(1);
+  });
+
+  it('passes the start offset through', async () => {
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(fixture));
+
+    await searchItra('croft', 25, 50);
+
+    expect(body(1).get('start')).toBe('50');
+    expect(body(1).get('count')).toBe('26');
+  });
+
+  it('defaults to the first page', async () => {
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(fixture));
+
+    await searchItra('croft');
+
+    expect(body(1).get('start')).toBe('0');
+  });
+
+  it('never asks beyond the server-side cap', async () => {
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(fixture));
+
+    // ITRA returns 49 rows however large count is; asking for more is pointless.
+    await searchItra('croft', 500);
+
+    expect(Number(body(1).get('count'))).toBeLessThanOrEqual(50);
+  });
+});
+
 describe('fetchItraIndex', () => {
   it('pins on RunnerId instead of taking the first match', async () => {
     outboundFetch

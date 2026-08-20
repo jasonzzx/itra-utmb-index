@@ -1,100 +1,90 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { prettyName } from '@/lib/format';
+import { pairPages, type Candidate } from '@/lib/pair';
 import { newRunnerId, readPersonal, writePersonal } from '@/lib/storage';
 import type { ItraIndex, RunnerRef, UtmbIndex } from '@/lib/types';
 
-interface Candidate {
-  key: string;
-  name: string;
-  itra?: ItraIndex;
-  utmb?: UtmbIndex;
+interface SearchResponse {
+  itra?: ItraIndex[];
+  utmb?: UtmbIndex[];
+  pageSize?: number;
+  hasMore?: { itra: boolean; utmb: boolean };
+  errors?: { itra: string | null; utmb: string | null };
 }
 
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
-
-/**
- * One row per person. ITRA and UTMB are matched on runner id where they agree
- * (UTMB reuses ITRA's ids in practice) and on normalized name otherwise, so
- * adding a runner captures both profiles in a single tap.
- */
-function pair(itra: ItraIndex[], utmb: UtmbIndex[]): Candidate[] {
-  const byId = new Map<number, Candidate>();
-  const byName = new Map<string, Candidate>();
-  const out: Candidate[] = [];
-
-  for (const r of itra) {
-    const c: Candidate = { key: `itra:${r.runnerId}`, name: r.name, itra: r };
-    byId.set(r.runnerId, c);
-    byName.set(norm(r.name), c);
-    out.push(c);
-  }
-
-  for (const r of utmb) {
-    const match = byId.get(r.id) ?? byName.get(norm(r.name));
-    if (match && !match.utmb) {
-      match.utmb = r;
-    } else if (!match) {
-      out.push({ key: `utmb:${r.id}`, name: r.name, utmb: r });
-    }
-  }
-
-  // Strongest runners first — most searches are for a known name.
-  return out.sort(
-    (a, b) => Math.max(b.itra?.pi ?? 0, b.utmb?.ip ?? 0) - Math.max(a.itra?.pi ?? 0, a.utmb?.ip ?? 0),
-  );
-}
+const NO_ERRORS = { itra: null, utmb: null };
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
-  const [itra, setItra] = useState<ItraIndex[]>([]);
-  const [utmb, setUtmb] = useState<UtmbIndex[]>([]);
-  const [errors, setErrors] = useState<{ itra: string | null; utmb: string | null }>({
-    itra: null,
-    utmb: null,
-  });
+  const [itraPages, setItraPages] = useState<ItraIndex[][]>([]);
+  const [utmbPages, setUtmbPages] = useState<UtmbIndex[][]>([]);
+  const [hasMore, setHasMore] = useState({ itra: false, utmb: false });
+  const [pageSize, setPageSize] = useState(25);
+  const [errors, setErrors] = useState<{ itra: string | null; utmb: string | null }>(NO_ERRORS);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState<RunnerRef[]>([]);
 
+  // Aborts whatever is in flight — a new query, or a superseded Load more.
+  const inFlight = useRef<AbortController | null>(null);
+
   useEffect(() => setSaved(readPersonal()), []);
+
+  const fetchPage = useCallback(async (q: string, offset: number) => {
+    inFlight.current?.abort();
+    const controller = new AbortController();
+    inFlight.current = controller;
+
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/search?q=${encodeURIComponent(q)}&offset=${offset}`,
+        { signal: controller.signal },
+      );
+      const body = (await res.json()) as SearchResponse;
+      if (controller.signal.aborted) return;
+
+      setPageSize(body.pageSize ?? 25);
+      setHasMore(body.hasMore ?? { itra: false, utmb: false });
+      setErrors(body.errors ?? NO_ERRORS);
+      // offset 0 replaces; anything else appends a page.
+      setItraPages((prev) => (offset === 0 ? [body.itra ?? []] : [...prev, body.itra ?? []]));
+      setUtmbPages((prev) => (offset === 0 ? [body.utmb ?? []] : [...prev, body.utmb ?? []]));
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        setErrors({ itra: 'Search failed', utmb: 'Search failed' });
+      }
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }, []);
 
   // Debounced so typing doesn't fire a request per keystroke.
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {
-      setItra([]);
-      setUtmb([]);
-      setErrors({ itra: null, utmb: null });
+      inFlight.current?.abort();
+      setItraPages([]);
+      setUtmbPages([]);
+      setHasMore({ itra: false, utmb: false });
+      setErrors(NO_ERRORS);
+      setLoading(false);
       return;
     }
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, {
-          signal: controller.signal,
-        });
-        const body = await res.json();
-        setItra(body.itra ?? []);
-        setUtmb(body.utmb ?? []);
-        setErrors(body.errors ?? { itra: null, utmb: null });
-      } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
-          setErrors({ itra: 'Search failed', utmb: 'Search failed' });
-        }
-      } finally {
-        setLoading(false);
-      }
-    }, 350);
+    const timer = setTimeout(() => void fetchPage(q, 0), 350);
+    return () => clearTimeout(timer);
+  }, [query, fetchPage]);
 
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, [query]);
+  const candidates = useMemo(
+    () => pairPages(itraPages, utmbPages),
+    [itraPages, utmbPages],
+  );
 
-  const candidates = useMemo(() => pair(itra, utmb), [itra, utmb]);
+  // Pages fetched so far — the next offset, not the number of rows shown,
+  // since the two sources are paged in lockstep.
+  const pagesLoaded = Math.max(itraPages.length, utmbPages.length);
+  const moreAvailable = hasMore.itra || hasMore.utmb;
 
   function isAdded(c: Candidate): boolean {
     return saved.some(
@@ -174,6 +164,16 @@ export default function SearchPage() {
           </button>
         );
       })}
+
+      {moreAvailable && candidates.length > 0 && (
+        <button
+          className="load-more"
+          onClick={() => void fetchPage(query.trim(), pagesLoaded * pageSize)}
+          disabled={loading}
+        >
+          {loading ? 'Loading…' : 'Load more'}
+        </button>
+      )}
     </>
   );
 }

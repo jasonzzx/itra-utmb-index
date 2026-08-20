@@ -41,6 +41,20 @@ describe('searchUtmb', () => {
     expect(url).toContain('search=kilian');
   });
 
+  it('passes the offset through for paging', async () => {
+    outboundFetch.mockResolvedValueOnce(ok());
+    await searchUtmb('croft', 'general', 25, 50);
+    const url = String(outboundFetch.mock.calls[0][0]);
+    expect(url).toContain('offset=50');
+    expect(url).toContain('limit=25');
+  });
+
+  it('defaults to the first page', async () => {
+    outboundFetch.mockResolvedValueOnce(ok());
+    await searchUtmb('croft');
+    expect(String(outboundFetch.mock.calls[0][0])).toContain('offset=0');
+  });
+
   it('skips the network for queries that are too short', async () => {
     expect(await searchUtmb('k')).toEqual([]);
     expect(outboundFetch).not.toHaveBeenCalled();
