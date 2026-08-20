@@ -75,6 +75,32 @@ requests through a proxy with a non-datacenter exit IP.
 If ITRA is unavailable for any reason, **UTMB numbers still load** — the two
 sources are resolved independently and one failing never blanks the other.
 
+### Diagnosing it
+
+```bash
+npm run doctor
+```
+
+Run this **from the machine where ITRA is failing** — the verdict depends
+entirely on the network the app runs from, so it cannot be answered from
+anywhere else. It reports the egress IP, the WAF headers, and one of three
+verdicts:
+
+| verdict | meaning |
+| --- | --- |
+| reachable | ITRA is fine from here; any error is in the app, not the network |
+| challenged | `202` + `x-amzn-waf-action: challenge` — a JavaScript challenge |
+| blocked | a bare `403` — bot protection has refused this IP outright |
+
+Challenged and blocked have the same remedy: set `OUTBOUND_PROXY_URL`, or run
+the app from a network ITRA accepts. Both are access controls and the app
+reports them rather than trying to defeat them.
+
+To keep from provoking them, ITRA requests are capped at two in flight, all
+concurrent callers share a single CSRF handshake, a refusal starts a 60s
+cooldown during which no request is made, and a window stops after the first
+page when the results have already ended.
+
 ## Caching
 
 Indexes only move when race results are scored, so they're cached server-side

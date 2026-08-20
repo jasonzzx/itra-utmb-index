@@ -144,6 +144,14 @@ export function RunnerCard({
             <div>
               {itraErr && <div className="err">ITRA: {itraErr}</div>}
               {utmbErr && <div className="err">UTMB: {utmbErr}</div>}
+              {/* One source failing is expected and survivable — say which half
+                  is still real so a blocked ITRA doesn't read as a broken app. */}
+              {itraErr && !utmbErr && utmb && (
+                <div className="stamp">The UTMB figure above is still live.</div>
+              )}
+              {utmbErr && !itraErr && itra && (
+                <div className="stamp">The ITRA figure above is still live.</div>
+              )}
             </div>
           )}
 

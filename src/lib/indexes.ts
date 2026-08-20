@@ -6,7 +6,7 @@ import {
   utmbTag,
   type Stamped,
 } from './cache';
-import { fetchItraIndex } from './itra';
+import { fetchItraIndex, itraAccessNotice } from './itra';
 import { fetchUtmbIndex } from './utmb';
 import type { RunnerIndexes, RunnerRef, SourceResult } from './types';
 
@@ -40,14 +40,24 @@ async function mapLimit<T, R>(
  */
 async function settle<T>(
   fn: () => Promise<Stamped<T>>,
+  /**
+   * Recovers the real reason when one is available.
+   *
+   * React replaces any error thrown inside a `'use cache'` function with "the
+   * specific message is omitted in production builds", so the message a caller
+   * catches from a cached lookup is a placeholder. The source module records
+   * why it refused, and that is what the user should read.
+   */
+  notice?: () => string | null,
 ): Promise<SourceResult<T>> {
   try {
     const { data, fetchedAt } = await fn();
     return { ok: true, data, fetchedAt };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
-      error: err instanceof Error ? err.message : String(err),
+      error: notice?.() ?? message,
       fetchedAt: new Date().toISOString(),
     };
   }
@@ -80,10 +90,12 @@ export async function getRunnerIndexes(
   }
 
   const [itra, utmb] = await Promise.all([
-    settle(() =>
-      force
-        ? stampNow(fetchItraIndex(runner.name, runner.itraRunnerId))
-        : cachedItraIndex(runner.name, runner.itraRunnerId),
+    settle(
+      () =>
+        force
+          ? stampNow(fetchItraIndex(runner.name, runner.itraRunnerId))
+          : cachedItraIndex(runner.name, runner.itraRunnerId),
+      itraAccessNotice,
     ),
     settle(() =>
       force

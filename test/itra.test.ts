@@ -27,8 +27,10 @@ vi.mock('@/lib/http', () => ({
   resetOutboundDispatcher: () => {},
 }));
 
-const { searchItra, searchItraWindow, fetchItraIndex, decryptResponse, resetItraSession, ItraChallengedError } =
-  await import('@/lib/itra');
+const {
+  searchItra, searchItraWindow, fetchItraIndex, decryptResponse, resetItraSession,
+  itraInFlight, itraAccessNotice, ItraChallengedError, ItraBlockedError, ItraAccessError,
+} = await import('@/lib/itra');
 
 beforeEach(() => {
   outboundFetch.mockReset();
@@ -299,5 +301,216 @@ describe('searchItraWindow', () => {
     expect(await searchItraWindow('a', 100)).toEqual([]);
     expect(await searchItraWindow('croft', 0)).toEqual([]);
     expect(outboundFetch).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * AWS WAF turns requests away two different ways and they look nothing alike:
+ * a challenge is 202 with a header, a block is a bare 403. Reporting a block
+ * as "ITRA search failed with 403" told the user nothing and suggested no
+ * remedy, which is exactly what was seen on the runner cards.
+ */
+describe('bot protection', () => {
+  it('reports a bare 403 as a block, not a raw status', async () => {
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(null, { status: 403 }));
+
+    const err = await searchItra('jornet').catch((e) => e);
+    expect(err).toBeInstanceOf(ItraBlockedError);
+    expect(err).toBeInstanceOf(ItraAccessError);
+    expect(err.message).toMatch(/OUTBOUND_PROXY_URL/);
+    expect(err.message).toMatch(/UTMB figures are unaffected/);
+  });
+
+  it('still calls it a challenge when the header says so, whatever the status', async () => {
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(
+        res(null, { status: 403, headers: { 'x-amzn-waf-action': 'challenge' } }),
+      );
+    await expect(searchItra('jornet')).rejects.toBeInstanceOf(ItraChallengedError);
+  });
+
+  // Re-handshaking into a block sent another pair of requests at a host that
+  // had just refused us; over a runner list that multiplied badly.
+  it('does not retry a 403', async () => {
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(null, { status: 403 }));
+
+    await expect(searchItra('jornet')).rejects.toBeInstanceOf(ItraBlockedError);
+    // Token page + the one search. No second handshake, no second search.
+    expect(outboundFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('makes no further requests while the cooldown holds', async () => {
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(null, { status: 403 }));
+
+    await expect(searchItra('jornet')).rejects.toBeInstanceOf(ItraBlockedError);
+    const afterBlock = outboundFetch.mock.calls.length;
+
+    // A card refresh during a block should cost nothing at all.
+    for (let i = 0; i < 5; i++) {
+      await expect(searchItra('jornet')).rejects.toBeInstanceOf(ItraBlockedError);
+    }
+    expect(outboundFetch).toHaveBeenCalledTimes(afterBlock);
+  });
+
+  it('lifts the cooldown once the session is reset', async () => {
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(null, { status: 403 }));
+    await expect(searchItra('jornet')).rejects.toBeInstanceOf(ItraBlockedError);
+
+    resetItraSession();
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok2') }))
+      .mockResolvedValueOnce(res(fixture));
+    expect(await searchItra('jornet')).toHaveLength(2);
+  });
+});
+
+describe('request volume', () => {
+  /**
+   * The regression that matters most: /api/indexes fans out over a runner
+   * list, so an uncoalesced handshake meant one token-page fetch per runner
+   * arriving at once — the burst shape bot protection blocks on.
+   */
+  it('performs one handshake for many concurrent callers', async () => {
+    let tokenFetches = 0;
+    outboundFetch.mockImplementation(async (_url: string, init: { method?: string }) => {
+      if (init?.method !== 'POST') {
+        tokenFetches++;
+        // Yield so the other callers arrive while this one is in flight.
+        await new Promise((r) => setTimeout(r, 5));
+        return res(null, { text: TOKEN_PAGE('tok') });
+      }
+      return res(fixture);
+    });
+
+    await Promise.all(
+      Array.from({ length: 8 }, (_, i) => searchItra(`runner${i}`)),
+    );
+
+    expect(tokenFetches).toBe(1);
+  });
+
+  it('never has more than two requests in flight at once', async () => {
+    let peak = 0;
+    outboundFetch.mockImplementation(async (_url: string, init: { method?: string }) => {
+      peak = Math.max(peak, itraInFlight());
+      await new Promise((r) => setTimeout(r, 5));
+      return init?.method === 'POST' ? res(fixture) : res(null, { text: TOKEN_PAGE('tok') });
+    });
+
+    await Promise.all(Array.from({ length: 10 }, (_, i) => searchItra(`runner${i}`)));
+
+    expect(peak).toBeLessThanOrEqual(2);
+  });
+
+  it('still short-circuits a window at the end of the result set', async () => {
+    outboundFetch.mockImplementation(async (_url: string, init: { method?: string }) =>
+      init?.method === 'POST' ? res(fixture) : res(null, { text: TOKEN_PAGE('tok') }),
+    );
+    // The fixture's 2 rows are fewer than a full 49-row page, so page one is
+    // the end of the results and later pages are discarded. Queueing behind
+    // the semaphore must not change that.
+    expect(await searchItraWindow('croft', 147)).toHaveLength(2);
+  });
+});
+
+/**
+ * React replaces any error thrown inside a `'use cache'` function with "the
+ * specific message is omitted in production builds", so the carefully worded
+ * reason never reached the user on a cached lookup — they saw the placeholder.
+ * The module records why it refused so callers can report the real cause.
+ */
+describe('itraAccessNotice', () => {
+  it('is null when nothing has gone wrong', async () => {
+    expect(itraAccessNotice()).toBeNull();
+  });
+
+  it('reports the reason after a block', async () => {
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(null, { status: 403 }));
+    await expect(searchItra('jornet')).rejects.toBeInstanceOf(ItraBlockedError);
+
+    expect(itraAccessNotice()).toMatch(/OUTBOUND_PROXY_URL/);
+    expect(itraAccessNotice()).not.toMatch(/omitted in production/);
+  });
+
+  it('distinguishes a challenge from a block in the reported reason', async () => {
+    outboundFetch.mockResolvedValueOnce(
+      res(null, { status: 202, headers: { 'x-amzn-waf-action': 'challenge' } }),
+    );
+    await expect(searchItra('jornet')).rejects.toBeInstanceOf(ItraChallengedError);
+    expect(itraAccessNotice()).toMatch(/challenge/i);
+  });
+
+  it('clears once the block is reset', async () => {
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(null, { status: 403 }));
+    await expect(searchItra('jornet')).rejects.toBeInstanceOf(ItraBlockedError);
+    expect(itraAccessNotice()).not.toBeNull();
+
+    resetItraSession();
+    expect(itraAccessNotice()).toBeNull();
+  });
+});
+
+describe('searchItraWindow request economy', () => {
+  function postCount() {
+    return outboundFetch.mock.calls.filter((c) => c[1]?.method === 'POST').length;
+  }
+
+  /**
+   * A full-name search returns a handful of runners, so fetching the whole
+   * window up front spent five requests to throw four away — wasteful against
+   * a host whose bot protection is already refusing us.
+   */
+  it('stops after one page when the results already ended', async () => {
+    outboundFetch.mockImplementation(async (_u: string, init: { method?: string }) =>
+      init?.method === 'POST' ? res(fixture) : res(null, { text: TOKEN_PAGE('tok') }),
+    );
+
+    // The fixture's 2 rows are a short page, so there is nothing more to get.
+    expect(await searchItraWindow('elliot croft', 250)).toHaveLength(2);
+    expect(postCount()).toBe(1);
+  });
+
+  it('fetches the remaining pages when the first one fills', async () => {
+    const full = {
+      ResultCount: 999,
+      Results: Array.from({ length: 49 }, (_, i) => ({
+        RunnerId: i, FirstName: `R${i}`, LastName: 'TEST', Nationality: 'ES',
+        Code: '', Gender: 'Male', AgeGroup: ' 35-39', RecentRaces: '',
+        ProfilePic: '', Pi: 500, PiIndex: 'Expert 1', ColorCode: '#000',
+      })),
+    };
+    const { webcrypto } = await import('node:crypto');
+    const key = webcrypto.getRandomValues(new Uint8Array(32));
+    const iv = webcrypto.getRandomValues(new Uint8Array(16));
+    const ck = await webcrypto.subtle.importKey('raw', key, { name: 'AES-CBC' }, false, ['encrypt']);
+    const ct = await webcrypto.subtle.encrypt(
+      { name: 'AES-CBC', iv }, ck, new TextEncoder().encode(JSON.stringify(full)),
+    );
+    const payload = {
+      response1: Buffer.from(ct).toString('base64'),
+      response2: Buffer.from(iv).toString('base64'),
+      response3: Buffer.from(key).toString('base64'),
+    };
+
+    outboundFetch.mockImplementation(async (_u: string, init: { method?: string }) =>
+      init?.method === 'POST' ? res(payload) : res(null, { text: TOKEN_PAGE('tok') }),
+    );
+
+    // 98 wanted over 49-row pages is 2 pages, and page one is full.
+    await searchItraWindow('croft', 98);
+    expect(postCount()).toBe(2);
   });
 });

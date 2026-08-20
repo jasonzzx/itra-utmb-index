@@ -18,28 +18,87 @@ const TOKEN_RE =
   /name="__RequestVerificationToken"[^>]*\bvalue="([^"]+)"/;
 
 /**
- * ITRA is fronted by AWS WAF Bot Control. When it decides to challenge us it
- * answers 202 with an `x-amzn-waf-action: challenge` header and a page whose
- * only content is a JavaScript challenge. That is an access control, so we
- * report it plainly rather than trying to defeat it — see the README for the
- * OUTBOUND_PROXY_URL escape hatch.
+ * ITRA is fronted by AWS WAF Bot Control, which has two ways of turning us
+ * away, and they need telling apart because they look nothing alike:
+ *
+ * - **challenge** — `202` with `x-amzn-waf-action: challenge` and a page whose
+ *   only content is a JavaScript challenge.
+ * - **block** — a bare `403` with no distinguishing header.
+ *
+ * Both are access controls. This reports them plainly and backs off; it does
+ * not try to defeat either. `OUTBOUND_PROXY_URL` (see src/lib/http.ts) is the
+ * supported way to reach ITRA from a network it refuses.
  */
-export class ItraChallengedError extends Error {
+export abstract class ItraAccessError extends Error {}
+
+export class ItraChallengedError extends ItraAccessError {
   constructor() {
     super(
-      'ITRA returned an AWS WAF bot challenge. Set OUTBOUND_PROXY_URL to route ' +
-        'ITRA requests through a proxy with a non-datacenter IP.',
+      'ITRA returned an AWS WAF bot challenge, so this network cannot reach it. ' +
+        'Set OUTBOUND_PROXY_URL to route ITRA requests through a proxy with a ' +
+        'non-datacenter IP. UTMB figures are unaffected.',
     );
     this.name = 'ItraChallengedError';
   }
 }
 
-function assertNotChallenged(res: Response): void {
-  if (
-    res.headers.get('x-amzn-waf-action') === 'challenge' ||
-    res.status === 202
-  ) {
-    throw new ItraChallengedError();
+export class ItraBlockedError extends ItraAccessError {
+  constructor() {
+    super(
+      'ITRA blocked this request (HTTP 403), which usually means its bot ' +
+        'protection has blocked the IP the app runs from — datacenter ranges ' +
+        'like serverless hosting are the common case. Run `npm run doctor` from ' +
+        'that environment to confirm, and set OUTBOUND_PROXY_URL to route ITRA ' +
+        'through a proxy. UTMB figures are unaffected.',
+    );
+    this.name = 'ItraBlockedError';
+  }
+}
+
+/**
+ * Cooldown after a block. Retrying into a wall only deepens the block and
+ * costs the user latency for a result that cannot arrive, so once ITRA says no
+ * we stop asking for a while.
+ */
+const BLOCK_COOLDOWN_MS = 60_000;
+let blockedUntil = 0;
+let lastAccessMessage: string | null = null;
+
+/**
+ * Why ITRA is currently refusing us, if it is.
+ *
+ * Needed because errors thrown inside a `'use cache'` function are replaced by
+ * React with "the specific message is omitted in production builds" before any
+ * caller sees them. Recording the reason here lets the API route report what
+ * actually happened instead of that placeholder.
+ */
+export function itraAccessNotice(): string | null {
+  return Date.now() < blockedUntil ? lastAccessMessage : null;
+}
+
+function assertNotBlocked(res: Response): void {
+  // Order matters: a challenge can arrive with a non-202 status, so the header
+  // is checked before the status code.
+  if (res.headers.get('x-amzn-waf-action') === 'challenge' || res.status === 202) {
+    throw recordAccessError(new ItraChallengedError());
+  }
+  if (res.status === 403) {
+    throw recordAccessError(new ItraBlockedError());
+  }
+}
+
+function recordAccessError<E extends ItraAccessError>(err: E): E {
+  blockedUntil = Date.now() + BLOCK_COOLDOWN_MS;
+  lastAccessMessage = err.message;
+  return err;
+}
+
+/** Fail fast while a block is in force, without making a request. */
+function assertNotCoolingDown(): void {
+  if (Date.now() < blockedUntil) {
+    throw lastAccessMessage
+      ? Object.assign(new ItraBlockedError(), { message: lastAccessMessage })
+      : new ItraBlockedError();
   }
 }
 
@@ -56,6 +115,45 @@ interface ItraSession {
  */
 const SESSION_TTL_MS = 5 * 60_000;
 let cachedSession: ItraSession | null = null;
+
+/**
+ * The handshake in flight, shared by everyone waiting on it.
+ *
+ * Without this, concurrent callers each ran their own. `/api/indexes` fans out
+ * over a runner list, so a cold cache meant one token-page fetch per runner
+ * arriving at once — exactly the burst bot protection blocks on, and the app
+ * doing it to itself.
+ */
+let sessionInFlight: Promise<ItraSession> | null = null;
+
+/**
+ * Ceiling on ITRA requests in flight at once, whatever the callers do.
+ *
+ * `searchItraWindow` wants 5 pages and `/api/indexes` fans out over a whole
+ * list; neither should turn into a burst against a host that is watching for
+ * exactly that. Requests queue instead.
+ */
+const MAX_CONCURRENT = 2;
+let running = 0;
+const waiting: (() => void)[] = [];
+
+async function withSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (running >= MAX_CONCURRENT) {
+    await new Promise<void>((resolve) => waiting.push(resolve));
+  }
+  running++;
+  try {
+    return await fn();
+  } finally {
+    running--;
+    waiting.shift()?.();
+  }
+}
+
+/** Test seam: how many ITRA requests are in flight right now. */
+export function itraInFlight(): number {
+  return running;
+}
 
 /**
  * ITRA refuses to return more than 49 rows however large `count` is
@@ -115,15 +213,18 @@ export async function decryptResponse(
 }
 
 async function acquireSession(): Promise<ItraSession> {
-  const res = await outboundFetch(FIND_PAGE, {
-    headers: {
-      'User-Agent': USER_AGENT,
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9',
-    },
-    cache: 'no-store',
-  });
-  assertNotChallenged(res);
+  assertNotCoolingDown();
+  const res = await withSlot(() =>
+    outboundFetch(FIND_PAGE, {
+      headers: {
+        'User-Agent': USER_AGENT,
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      cache: 'no-store',
+    }),
+  );
+  assertNotBlocked(res);
   if (!res.ok) {
     throw new Error(`ITRA search page returned ${res.status}`);
   }
@@ -143,8 +244,18 @@ async function getSession(forceFresh = false): Promise<ItraSession> {
   const fresh =
     cachedSession && Date.now() - cachedSession.acquiredAt < SESSION_TTL_MS;
   if (!forceFresh && fresh && cachedSession) return cachedSession;
-  cachedSession = await acquireSession();
-  return cachedSession;
+
+  // Everyone arriving while a handshake is running waits on that one.
+  sessionInFlight ??= acquireSession()
+    .then((session) => {
+      cachedSession = session;
+      return session;
+    })
+    .finally(() => {
+      sessionInFlight = null;
+    });
+
+  return sessionInFlight;
 }
 
 async function postSearch(
@@ -161,21 +272,23 @@ async function postSearch(
     count: String(count),
     echoToken: '1',
   });
-  return outboundFetch(FIND_API, {
-    method: 'POST',
-    headers: {
-      'User-Agent': USER_AGENT,
-      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      'X-Requested-With': 'XMLHttpRequest',
-      'X-CSRF-TOKEN': session.token,
-      Origin: ORIGIN,
-      Referer: FIND_PAGE,
-      Accept: '*/*',
-      ...(session.cookie ? { Cookie: session.cookie } : {}),
-    },
-    body,
-    cache: 'no-store',
-  });
+  return withSlot(() =>
+    outboundFetch(FIND_API, {
+      method: 'POST',
+      headers: {
+        'User-Agent': USER_AGENT,
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': session.token,
+        Origin: ORIGIN,
+        Referer: FIND_PAGE,
+        Accept: '*/*',
+        ...(session.cookie ? { Cookie: session.cookie } : {}),
+      },
+      body,
+      cache: 'no-store',
+    }),
+  );
 }
 
 function toIndex(raw: ItraRawRunner): ItraIndex {
@@ -203,8 +316,13 @@ function toIndex(raw: ItraRawRunner): ItraIndex {
 }
 
 /**
- * Search ITRA by name. Retries once with a fresh session on 400/403, which is
- * what a stale anti-forgery token looks like.
+ * Search ITRA by name. Retries once with a fresh session on 400, which is what
+ * a stale anti-forgery token looks like.
+ *
+ * A 403 is deliberately *not* retried. It means bot protection turned us away,
+ * and re-handshaking immediately only sends another pair of requests into the
+ * same wall — with a fan-out over a runner list that turned one refusal into
+ * sixteen requests.
  */
 export async function searchItra(
   name: string,
@@ -212,6 +330,7 @@ export async function searchItra(
   start = 0,
 ): Promise<ItraIndex[]> {
   if (name.trim().length < 2) return [];
+  assertNotCoolingDown();
 
   // ITRA returns one fewer row than `count` asks for — measured at
   // count=3→2, 6→5, 26→25, 50→49 — so request one extra and trim. Above
@@ -221,12 +340,12 @@ export async function searchItra(
   let session = await getSession();
   let res = await postSearch(name, requested, start, session);
 
-  if (res.status === 400 || res.status === 403) {
+  if (res.status === 400) {
     cachedSession = null;
     session = await getSession(true);
     res = await postSearch(name, requested, start, session);
   }
-  assertNotChallenged(res);
+  assertNotBlocked(res);
   if (!res.ok) {
     throw new Error(`ITRA search failed with ${res.status}`);
   }
@@ -255,17 +374,24 @@ export async function searchItraWindow(
   if (name.trim().length < 2 || want <= 0) return [];
 
   const pageCount = Math.ceil(want / ITRA_MAX_PAGE);
-  // Warm the session once so the parallel requests don't each handshake.
-  await getSession();
 
-  const pages = await Promise.all(
-    Array.from({ length: pageCount }, (_, i) =>
-      searchItra(name, ITRA_MAX_PAGE, i * ITRA_MAX_PAGE),
+  // Fetch the first page alone before committing to the rest. A full-name
+  // search — the common case — returns a handful of runners, so a short first
+  // page means the other pages would have been fetched only to be discarded.
+  // "Elliot Croft" returns one runner: one request instead of five.
+  const first = await searchItra(name, ITRA_MAX_PAGE, 0);
+  if (first.length < ITRA_MAX_PAGE || pageCount === 1) {
+    return first.slice(0, want);
+  }
+
+  const rest = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, i) =>
+      searchItra(name, ITRA_MAX_PAGE, (i + 1) * ITRA_MAX_PAGE),
     ),
   );
 
-  const out: ItraIndex[] = [];
-  for (const page of pages) {
+  const out = [...first];
+  for (const page of rest) {
     out.push(...page);
     if (page.length < ITRA_MAX_PAGE) break; // end of the result set
   }
@@ -290,4 +416,6 @@ export async function fetchItraIndex(
 /** Test seam: drop the held session. */
 export function resetItraSession(): void {
   cachedSession = null;
+  sessionInFlight = null;
+  blockedUntil = 0;
 }

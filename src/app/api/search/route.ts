@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cachedItraSearch, cachedUtmbSearch } from '@/lib/cache';
+import { itraAccessNotice } from '@/lib/itra';
 
 /**
  * How wide a net one search casts. There is no "Load more" — a search fetches
@@ -45,7 +46,13 @@ export async function GET(request: Request) {
       utmb: utmbRows.length >= UTMB_WINDOW,
     },
     errors: {
-      itra: itra.status === 'rejected' ? String(itra.reason?.message ?? itra.reason) : null,
+      // A `'use cache'` function's thrown error reaches us as React's "message
+      // omitted in production builds" placeholder, so prefer the reason the
+      // source module recorded for itself.
+      itra:
+        itra.status === 'rejected'
+          ? itraAccessNotice() ?? String(itra.reason?.message ?? itra.reason)
+          : null,
       utmb: utmb.status === 'rejected' ? String(utmb.reason?.message ?? utmb.reason) : null,
     },
   });
