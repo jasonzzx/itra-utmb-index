@@ -53,6 +53,52 @@ describe('pairPages', () => {
     expect(out).toHaveLength(2);
   });
 
+  /**
+   * A search for "lei yang" returns 155 ITRA runners with that exact name.
+   * Pairing on name alone let the first absorb all the others, so 154 real
+   * runners silently vanished from the results — invisible until a genuinely
+   * common name turned up.
+   */
+  describe('runners who share a name', () => {
+    it('keeps every distinct runner rather than collapsing them onto one', () => {
+      const many = Array.from({ length: 20 }, (_, i) => itra(1000 + i, 'Lei YANG', 700 - i * 10));
+      const out = pairPages(many, []);
+      expect(out).toHaveLength(20);
+      expect(new Set(out.map((c) => c.itra!.runnerId)).size).toBe(20);
+    });
+
+    it('still pairs same-named runners across sources by id', () => {
+      const out = pairPages(
+        [itra(1, 'Lei YANG', 700), itra(2, 'Lei YANG', 400)],
+        [utmb(2, 'Lei YANG', 410), utmb(3, 'Lei YANG', 300)],
+      );
+      // 1 and 3 stay solo; 2 merges because the id matches.
+      expect(out).toHaveLength(3);
+      const merged = out.find((c) => c.itra?.runnerId === 2)!;
+      expect(merged.utmb?.ip).toBe(410);
+    });
+
+    it('stops pairing on name as soon as the name is ambiguous', () => {
+      // One "Lei YANG" per source with different ids still merges — from a
+      // single result set there is no way to tell a divergent-id pairing from
+      // two different people, and the sources' ids usually do agree.
+      expect(pairPages([itra(1, 'Lei YANG', 700)], [utmb(999, 'Lei YANG', 300)])).toHaveLength(1);
+
+      // Add a second same-named runner to either source and the name stops
+      // being evidence of identity, so nobody is merged on it.
+      const out = pairPages(
+        [itra(1, 'Lei YANG', 700), itra(2, 'Lei YANG', 600)],
+        [utmb(999, 'Lei YANG', 300)],
+      );
+      expect(out).toHaveLength(3);
+    });
+
+    it('still pairs on name when the name is unique in both sources', () => {
+      const out = pairPages([itra(1, 'Óscar GARCÍA', 800)], [utmb(999, 'OSCAR GARCIA', 810)]);
+      expect(out).toHaveLength(1);
+    });
+  });
+
   it('handles empty input', () => {
     expect(pairPages([], [])).toEqual([]);
   });

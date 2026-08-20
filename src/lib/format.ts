@@ -34,3 +34,18 @@ export function ago(iso: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.round(hrs / 24)}d ago`;
 }
+
+/**
+ * Condense an ITRA race entry for a one-line hint.
+ *
+ * Entries read "2026 - Nike ACG Ultra-Trail Chongli - Chongli 168 Emergency
+ * Route Team": year first, then the event, then the race itself. The year and
+ * the race are what make a runner recognisable, so keep those.
+ */
+export function shortRace(entry: string): string {
+  const parts = entry.split(' - ').map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return '';
+  const year = /^\d{4}$/.test(parts[0]) ? parts[0] : null;
+  const race = parts[parts.length - 1];
+  return year && parts.length > 1 ? `${year} · ${race}` : race;
+}

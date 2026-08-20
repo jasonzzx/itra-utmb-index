@@ -1,7 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { prettyName } from '@/lib/format';
+import { SearchFilters } from '@/components/SearchFilters';
+import {
+  applyFilters,
+  EMPTY_FILTERS,
+  filterOptions,
+  type FilterState,
+} from '@/lib/filter';
+import { prettyName, shortRace } from '@/lib/format';
 import { pairPages, type Candidate } from '@/lib/pair';
 import { newRunnerId, readPersonal, writePersonal } from '@/lib/storage';
 import type { ItraIndex, RunnerRef, UtmbIndex } from '@/lib/types';
@@ -58,6 +65,8 @@ export default function SearchPage() {
   // Debounced so typing doesn't fire a request per keystroke.
   useEffect(() => {
     const q = query.trim();
+    // A new query invalidates whatever was filtered from the old one.
+    setFilters(EMPTY_FILTERS);
     if (q.length < 2) {
       inFlight.current?.abort();
       setItra([]);
@@ -71,10 +80,14 @@ export default function SearchPage() {
     return () => clearTimeout(timer);
   }, [query, runSearch]);
 
-  const candidates = useMemo(
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
+
+  const all = useMemo(
     () => pairPages(itra, utmb, query.trim()),
     [itra, utmb, query],
   );
+  const options = useMemo(() => filterOptions(all), [all]);
+  const candidates = useMemo(() => applyFilters(all, filters), [all, filters]);
 
   // Index of the first demoted row, so a divider can mark where the runners
   // matching everything you typed stop.
@@ -127,9 +140,23 @@ export default function SearchPage() {
       {errors.itra && <div className="err">ITRA search unavailable: {errors.itra}</div>}
       {errors.utmb && <div className="err">UTMB search unavailable: {errors.utmb}</div>}
 
+      {all.length > 0 && (
+        <SearchFilters
+          options={options}
+          state={filters}
+          onChange={setFilters}
+          shown={candidates.length}
+          total={all.length}
+        />
+      )}
+
       {query.trim().length >= 2 && !loading && candidates.length === 0 && (
         <div className="empty">
-          <p>No runners found for “{query.trim()}”.</p>
+          <p>
+            {all.length > 0
+              ? 'No runners match those filters.'
+              : `No runners found for “${query.trim()}”.`}
+          </p>
         </div>
       )}
 
@@ -159,6 +186,12 @@ export default function SearchPage() {
                     .filter(Boolean)
                     .join(' · ')}
                 </div>
+                {/* The strongest human discriminator when a name is shared —
+                    "2026 · Chongli 168" identifies a person, "CN · 40-44"
+                    does not. ITRA sends this with every search result. */}
+                {c.itra?.recentRaces[0] && (
+                  <div className="race">{shortRace(c.itra.recentRaces[0])}</div>
+                )}
               </div>
               <span className="score">{added ? '✓' : '+'}</span>
             </button>

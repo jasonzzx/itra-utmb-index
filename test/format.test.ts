@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ago, initials, prettyName } from '@/lib/format';
+import { ago, initials, prettyName, shortRace } from '@/lib/format';
 
 describe('prettyName', () => {
   it('softens the shouted surname ITRA returns', () => {
@@ -41,5 +41,27 @@ describe('ago', () => {
 
   it('never reports a negative age for a clock skewed into the future', () => {
     expect(ago(new Date(Date.now() + 60_000).toISOString())).toBe('just now');
+  });
+});
+
+describe('shortRace', () => {
+  it('keeps the year and the race, dropping the event in between', () => {
+    expect(shortRace('2026 - Nike ACG Ultra-Trail Chongli - Chongli 168 Emergency Route Team'))
+      .toBe('2026 · Chongli 168 Emergency Route Team');
+  });
+
+  it('handles an entry with only a year and a race', () => {
+    expect(shortRace('2025 - Amnye Machen Xtreme Challenge')).toBe(
+      '2025 · Amnye Machen Xtreme Challenge',
+    );
+  });
+
+  it('passes through an entry with no year', () => {
+    expect(shortRace('Some Race')).toBe('Some Race');
+  });
+
+  it('returns empty for empty input', () => {
+    expect(shortRace('')).toBe('');
+    expect(shortRace('   ')).toBe('');
   });
 });

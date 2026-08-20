@@ -57,10 +57,32 @@ export function pairPages(
   const out: Candidate[] = [];
   const depth = Math.max(itraResults.length, utmbResults.length);
 
+  /**
+   * Name matching is only safe when the name identifies one person.
+   *
+   * A search for "lei yang" returns 155 ITRA runners with that exact name; if
+   * any of them could merge on name alone, the first would absorb all the rest
+   * and 154 real runners would vanish from the results. So a name is only used
+   * to pair when it occurs exactly once in each source, and everyone else is
+   * paired by id or left as their own row.
+   */
+  const countNames = (names: string[]) => {
+    const counts = new Map<string, number>();
+    for (const n of names) counts.set(norm(n), (counts.get(norm(n)) ?? 0) + 1);
+    return counts;
+  };
+  const itraNames = countNames(itraResults.map((r) => r.name));
+  const utmbNames = countNames(utmbResults.map((r) => r.name));
+  const nameIsUnique = (key: string) =>
+    (itraNames.get(key) ?? 0) <= 1 && (utmbNames.get(key) ?? 0) <= 1;
+
+  const matchByName = (key: string) =>
+    nameIsUnique(key) ? byName.get(key) : undefined;
+
   for (let i = 0; i < depth; i++) {
     const itra = itraResults[i];
     if (itra) {
-      const existing = byId.get(itra.runnerId) ?? byName.get(norm(itra.name));
+      const existing = byId.get(itra.runnerId) ?? matchByName(norm(itra.name));
       if (existing) {
         // Already has ITRA data: the source repeated a row. Otherwise this is
         // the ITRA half of a runner UTMB listed first.
@@ -85,7 +107,7 @@ export function pairPages(
 
     const utmb = utmbResults[i];
     if (utmb) {
-      const existing = byId.get(utmb.id) ?? byName.get(norm(utmb.name));
+      const existing = byId.get(utmb.id) ?? matchByName(norm(utmb.name));
       if (existing) {
         if (!existing.utmb) {
           existing.utmb = utmb;
