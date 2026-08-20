@@ -1,3 +1,4 @@
+import { isStrongMatch, matchTier, normToken } from './match';
 import type { ItraIndex, UtmbIndex } from './types';
 
 /**
@@ -22,15 +23,15 @@ export interface Candidate {
    * page — moving a row the reader is already looking at.
    */
   rank: number;
+  /** True when this runner matches what was actually typed. */
+  strong: boolean;
+  /** Match quality, used to order within the strong group. */
+  tier: number;
 }
 
-/** Compare names ignoring case, punctuation, accents and spacing. */
+/** Compare whole names ignoring case, punctuation, accents and spacing. */
 export function norm(name: string): string {
-  return name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z]/g, '');
+  return normToken(name);
 }
 
 /**
@@ -46,10 +47,17 @@ export function norm(name: string): string {
  *
  * Matching is by runner id first — UTMB reuses ITRA's ids in practice — and
  * falls back to a normalized name so pairing still works when they diverge.
+ *
+ * Runners who match the typed name are lifted into a strong group above all of
+ * that: UTMB matches any single word, so ranking by index alone buries a
+ * low-index runner under high-index strangers sharing a first name. The strong
+ * group is the one place ordering may change as pages load — see isStrongMatch
+ * for why that cannot happen on a single-word query.
  */
 export function pairPages(
   itraPages: ItraIndex[][],
   utmbPages: UtmbIndex[][],
+  query = '',
 ): Candidate[] {
   const byId = new Map<number, Candidate>();
   const byName = new Map<string, Candidate>();
@@ -76,6 +84,8 @@ export function pairPages(
         itra: r,
         page,
         rank: 0,
+        strong: false,
+        tier: 0,
       };
       byId.set(r.runnerId, c);
       byName.set(norm(r.name), c);
@@ -98,6 +108,8 @@ export function pairPages(
         utmb: r,
         page,
         rank: 0,
+        strong: false,
+        tier: 0,
       };
       byId.set(r.id, c);
       byName.set(norm(r.name), c);
@@ -111,5 +123,19 @@ export function pairPages(
     }
   }
 
-  return out.sort((a, b) => a.page - b.page || b.rank - a.rank);
+  // Score against every name the sources gave us, since one may hold the
+  // spelling that matches — ITRA's "Kilian JORNET BURGADA" vs UTMB's alternate.
+  for (const c of out) {
+    const names = [c.name, c.itra?.name, c.utmb?.name].filter(Boolean) as string[];
+    c.tier = Math.max(...names.map((n) => matchTier(query, n)));
+    c.strong = names.some((n) => isStrongMatch(query, n));
+  }
+
+  return out.sort(
+    (a, b) =>
+      Number(b.strong) - Number(a.strong) ||
+      (a.strong
+        ? b.tier - a.tier || b.rank - a.rank
+        : a.page - b.page || b.rank - a.rank),
+  );
 }

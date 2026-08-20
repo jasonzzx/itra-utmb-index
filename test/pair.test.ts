@@ -141,6 +141,83 @@ describe('pairPages', () => {
     expect(pairPages([[]], [[]])).toEqual([]);
   });
 
+  describe('name-match promotion', () => {
+    // The real "Elliot Croft" result set: the exact match arrives last and
+    // with the lowest index, exactly where the app used to bury it.
+    const elliots = [
+      utmb(1, 'Elliot CARDIN', 873),
+      utmb(2, 'Elliot PHILLIPPON', 804),
+      utmb(3, 'Elliot HOLTHAM', 755),
+      utmb(4, 'Elliot CROFT', 412),
+    ];
+
+    it('lifts the runner you typed above higher-indexed strangers', () => {
+      const out = pairPages([[]], [elliots], 'Elliot Croft');
+      expect(out[0].name).toBe('Elliot CROFT');
+      expect(out[0].strong).toBe(true);
+      expect(out.slice(1).every((c) => !c.strong)).toBe(true);
+    });
+
+    it('keeps the non-matching rows, just lower down', () => {
+      const out = pairPages([[]], [elliots], 'Elliot Croft');
+      expect(out).toHaveLength(4);
+      expect(out.map((c) => c.name)).toContain('Elliot CARDIN');
+    });
+
+    it('promotes an exact match found on a later page', () => {
+      const out = pairPages(
+        [[]],
+        [[utmb(1, 'Elliot CARDIN', 873)], [utmb(4, 'Elliot CROFT', 412)]],
+        'Elliot Croft',
+      );
+      expect(out[0].name).toBe('Elliot CROFT');
+    });
+
+    it('orders the strong group by match quality before index', () => {
+      const out = pairPages(
+        [[]],
+        [
+          [
+            utmb(1, 'Kilian JORNET BURGADA', 948), // all words, 3 tokens
+            utmb(2, 'Kilian JORNET', 500), // exact
+          ],
+        ],
+        'Kilian Jornet',
+      );
+      // Exact wins despite the far lower index.
+      expect(out[0].name).toBe('Kilian JORNET');
+      expect(out[1].name).toBe('Kilian JORNET BURGADA');
+    });
+
+    // This is what protects the paging work: one word promotes nothing, so
+    // the append-only ordering is untouched.
+    it('leaves a single-word query on the append-only path', () => {
+      const pages = [
+        [utmb(1, 'Meme CROFT', 477)],
+        [utmb(2, 'Jackie BEECROFT', 502)],
+      ];
+      const afterPage0 = pairPages([[]], [pages[0]], 'croft').map((c) => c.key);
+      const afterPage1 = pairPages([[], []], pages, 'croft').map((c) => c.key);
+      expect(afterPage1.slice(0, afterPage0.length)).toEqual(afterPage0);
+      expect(afterPage1).toEqual(['utmb:1', 'utmb:2']);
+    });
+
+    it('matches against either source name when the two spellings differ', () => {
+      const out = pairPages(
+        [[itra(7, 'Oscar GARCIA JORNET', 700)]],
+        [[utmb(7, 'Óscar GARCIA JORNET (Oscar GARCIA JORNET)', 710)]],
+        'Oscar Garcia Jornet',
+      );
+      expect(out[0].strong).toBe(true);
+    });
+
+    it('promotes nothing when no query is given', () => {
+      const out = pairPages([[]], [elliots]);
+      expect(out.every((c) => !c.strong)).toBe(true);
+      expect(out[0].name).toBe('Elliot CARDIN'); // pure index order
+    });
+  });
+
   it('gives every candidate a stable unique key', () => {
     const out = pairPages(
       [[itra(1, 'A', 1), itra(2, 'B', 2)]],

@@ -77,9 +77,14 @@ export default function SearchPage() {
   }, [query, fetchPage]);
 
   const candidates = useMemo(
-    () => pairPages(itraPages, utmbPages),
-    [itraPages, utmbPages],
+    () => pairPages(itraPages, utmbPages, query.trim()),
+    [itraPages, utmbPages, query],
   );
+
+  // Index of the first demoted row, so a divider can mark where the runners
+  // that match everything you typed stop.
+  const firstWeakIndex = candidates.findIndex((c) => !c.strong);
+  const showDivider = firstWeakIndex > 0;
 
   // Pages fetched so far — the next offset, not the number of rows shown,
   // since the two sources are paged in lockstep.
@@ -138,11 +143,14 @@ export default function SearchPage() {
         </div>
       )}
 
-      {candidates.map((c) => {
+      {candidates.map((c, i) => {
         const added = isAdded(c);
         return (
+          <div key={c.key}>
+            {showDivider && i === firstWeakIndex && (
+              <div className="group-divider">Other results</div>
+            )}
           <button
-            key={c.key}
             className="result"
             data-added={added}
             onClick={() => add(c)}
@@ -162,6 +170,7 @@ export default function SearchPage() {
             </div>
             <span className="score">{added ? '✓' : '+'}</span>
           </button>
+          </div>
         );
       })}
 

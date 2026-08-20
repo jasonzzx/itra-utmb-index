@@ -537,3 +537,12 @@ input {
 
 .load-more:active { transform: scale(0.98); }
 .load-more[disabled] { opacity: 0.6; color: var(--text-dim); }
+
+.group-divider {
+  margin: 14px 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
