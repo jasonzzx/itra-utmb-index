@@ -3,7 +3,7 @@
  * Opt-in: these hit the network, so they only run with LIVE=1.
  */
 import { describe, it, expect } from 'vitest';
-import { searchItra, fetchItraIndex } from '@/lib/itra';
+import { searchItra, fetchItraIndex, fetchItraProfile } from '@/lib/itra';
 import { searchUtmb, fetchUtmbIndex, fetchUtmbAllCategories } from '@/lib/utmb';
 
 const live = process.env.LIVE === '1' ? describe : describe.skip;
@@ -21,6 +21,24 @@ live('live upstream', () => {
 
   it('pins an ITRA runner by id', async () => {
     const r = await fetchItraIndex('Kilian Jornet', 2704);
+    expect(r?.runnerId).toBe(2704);
+  }, 30_000);
+
+  it('reads an ITRA index straight off the runner page, by id alone', async () => {
+    const r = await fetchItraProfile(2704);
+    expect(r?.runnerId).toBe(2704);
+    expect(r?.name).toMatch(/JORNET/i);
+    expect(r!.pi).toBeGreaterThan(800);
+    // Search spells the band "Elite 1"; the page hyphenates it, and the two
+    // have to agree because a card may be painted from either.
+    expect(r!.piIndex).toMatch(/^(Elite|Expert) \d$/);
+    console.log('ITRA by id:', r!.name, r!.pi, r!.piIndex, r!.ageGroup);
+  }, 30_000);
+
+  it('resolves a pinned runner whose name ITRA search cannot reach', async () => {
+    // The canonical profile slug, "jornetburgada", finds nobody in ITRA's own
+    // search — the id is the only way through.
+    const r = await fetchItraIndex('jornetburgada', 2704);
     expect(r?.runnerId).toBe(2704);
   }, 30_000);
 

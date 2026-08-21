@@ -44,6 +44,18 @@ describe('toRunnerList', () => {
     );
   });
 
+  it('carries a nickname across, and omits a blank one', () => {
+    const list = toRunnerList(
+      [
+        { id: 'x', name: 'Lei Yang', alias: '  Big Lei  ', itraRunnerId: 1 },
+        { id: 'y', name: 'Ruth Croft', alias: '   ', utmbId: 2 },
+      ],
+      { name: 'CRIT' },
+    );
+    expect(list.runners[0].alias).toBe('Big Lei');
+    expect(list.runners[1]).not.toHaveProperty('alias');
+  });
+
   it('trims surrounding whitespace from names', () => {
     const list = toRunnerList([{ id: 'x', name: '  Jim Walmsley  ', utmbId: 1 }], {
       name: '  CRIT  ',

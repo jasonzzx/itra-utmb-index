@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AddByLink } from '@/components/AddByLink';
 import { SearchFilters } from '@/components/SearchFilters';
 import {
   applyFilters,
@@ -22,7 +23,11 @@ interface SearchResponse {
 
 const NO_ERRORS = { itra: null, utmb: null };
 
+/** Two ways in: hunt by name, or paste the links and be certain. */
+type Mode = 'search' | 'link';
+
 export default function SearchPage() {
+  const [mode, setMode] = useState<Mode>('search');
   const [query, setQuery] = useState('');
   const [itra, setItra] = useState<ItraIndex[]>([]);
   const [utmb, setUtmb] = useState<UtmbIndex[]>([]);
@@ -102,20 +107,20 @@ export default function SearchPage() {
     );
   }
 
-  function add(c: Candidate) {
-    if (isAdded(c)) return;
-    const next = [
-      ...saved,
-      {
-        id: newRunnerId(),
-        // Store the readable form so exported lists aren't SHOUTING.
-        name: prettyName(c.name),
-        itraRunnerId: c.itra?.runnerId,
-        utmbId: c.utmb?.id,
-      },
-    ];
+  function save(runner: Omit<RunnerRef, 'id'>) {
+    const next = [...saved, { id: newRunnerId(), ...runner }];
     setSaved(next);
     writePersonal(next);
+  }
+
+  function add(c: Candidate) {
+    if (isAdded(c)) return;
+    save({
+      // Store the readable form so exported lists aren't SHOUTING.
+      name: prettyName(c.name),
+      itraRunnerId: c.itra?.runnerId,
+      utmbId: c.utmb?.id,
+    });
   }
 
   return (
@@ -124,86 +129,123 @@ export default function SearchPage() {
         <h1>Add a runner</h1>
       </header>
 
-      <div className="search-field">
-        <span aria-hidden>🔍</span>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name…"
-          autoComplete="off"
-          autoFocus
-          enterKeyHint="search"
-        />
-        {loading && <span className="spin" aria-hidden>↻</span>}
+      <div className="seg" role="tablist">
+        <button
+          role="tab"
+          aria-selected={mode === 'search'}
+          data-active={mode === 'search'}
+          onClick={() => setMode('search')}
+        >
+          Search by name
+        </button>
+        <button
+          role="tab"
+          aria-selected={mode === 'link'}
+          data-active={mode === 'link'}
+          onClick={() => setMode('link')}
+        >
+          Paste a link
+        </button>
       </div>
 
-      {errors.itra && <div className="err">ITRA search unavailable: {errors.itra}</div>}
-      {errors.utmb && <div className="err">UTMB search unavailable: {errors.utmb}</div>}
+      {mode === 'link' && <AddByLink saved={saved} onAdd={save} />}
 
-      {all.length > 0 && (
-        <SearchFilters
-          options={options}
-          state={filters}
-          onChange={setFilters}
-          shown={candidates.length}
-          total={all.length}
-        />
-      )}
-
-      {query.trim().length >= 2 && !loading && candidates.length === 0 && (
-        <div className="empty">
-          <p>
-            {all.length > 0
-              ? 'No runners match those filters.'
-              : `No runners found for “${query.trim()}”.`}
-          </p>
+      {mode === 'search' && (
+        <>
+        <div className="search-field">
+          <span aria-hidden>🔍</span>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name…"
+            autoComplete="off"
+            autoFocus
+            enterKeyHint="search"
+          />
+          {loading && <span className="spin" aria-hidden>↻</span>}
         </div>
-      )}
 
-      {candidates.map((c, i) => {
-        const added = isAdded(c);
-        return (
-          <div key={c.key}>
-            {showDivider && i === firstWeakIndex && (
-              <div className="group-divider">Other results</div>
-            )}
-            <button
-              className="result"
-              data-added={added}
-              onClick={() => add(c)}
-              disabled={added}
-            >
-              <div className="who">
-                <div className="name">{prettyName(c.name)}</div>
-                <div className="meta">
-                  {[
-                    // An index of 0 means the runner has no index, not a zero
-                    // score, so it reads as "no index" rather than "0".
-                    c.itra ? (c.itra.pi ? `ITRA ${c.itra.pi}` : 'ITRA —') : 'no ITRA match',
-                    c.utmb ? (c.utmb.ip ? `UTMB ${c.utmb.ip}` : 'UTMB —') : 'no UTMB match',
-                    c.itra?.nationality || c.utmb?.nationality,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </div>
-                {/* The strongest human discriminator when a name is shared —
-                    "2026 · Chongli 168" identifies a person, "CN · 40-44"
-                    does not. ITRA sends this with every search result. */}
-                {c.itra?.recentRaces[0] && (
-                  <div className="race">{shortRace(c.itra.recentRaces[0])}</div>
-                )}
-              </div>
-              <span className="score">{added ? '✓' : '+'}</span>
-            </button>
+        {errors.itra && <div className="err">ITRA search unavailable: {errors.itra}</div>}
+        {errors.utmb && <div className="err">UTMB search unavailable: {errors.utmb}</div>}
+
+        {all.length > 0 && (
+          <SearchFilters
+            options={options}
+            state={filters}
+            onChange={setFilters}
+            shown={candidates.length}
+            total={all.length}
+          />
+        )}
+
+        {query.trim().length >= 2 && !loading && candidates.length === 0 && (
+          <div className="empty">
+            <p>
+              {all.length > 0
+                ? 'No runners match those filters.'
+                : `No runners found for “${query.trim()}”.`}
+            </p>
           </div>
-        );
-      })}
+        )}
 
-      {truncated && candidates.length > 0 && (
-        <p className="tail-note">
-          Showing the {candidates.length} closest matches. Add a first name to
-          narrow it down.
-        </p>
+        {candidates.map((c, i) => {
+          const added = isAdded(c);
+          return (
+            <div key={c.key}>
+              {showDivider && i === firstWeakIndex && (
+                <div className="group-divider">Other results</div>
+              )}
+              <button
+                className="result"
+                data-added={added}
+                onClick={() => add(c)}
+                disabled={added}
+              >
+                <div className="who">
+                  <div className="name">{prettyName(c.name)}</div>
+                  <div className="meta">
+                    {[
+                      // An index of 0 means the runner has no index, not a zero
+                      // score, so it reads as "no index" rather than "0".
+                      c.itra ? (c.itra.pi ? `ITRA ${c.itra.pi}` : 'ITRA —') : 'no ITRA match',
+                      c.utmb ? (c.utmb.ip ? `UTMB ${c.utmb.ip}` : 'UTMB —') : 'no UTMB match',
+                      c.itra?.nationality || c.utmb?.nationality,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </div>
+                  {/* The strongest human discriminator when a name is shared —
+                      "2026 · Chongli 168" identifies a person, "CN · 40-44"
+                      does not. ITRA sends this with every search result. */}
+                  {c.itra?.recentRaces[0] && (
+                    <div className="race">{shortRace(c.itra.recentRaces[0])}</div>
+                  )}
+                </div>
+                <span className="score">{added ? '✓' : '+'}</span>
+              </button>
+            </div>
+          );
+        })}
+
+        {truncated && candidates.length > 0 && (
+          <p className="tail-note">
+            Showing the {candidates.length} closest matches. Add a first name to
+            narrow it down.
+          </p>
+        )}
+
+        {/* The escape hatch from a search that can't find them — a common name
+            buried by ranking, or an ITRA that won't answer at all. */}
+        {errors.itra && (
+          <p className="tail-note">
+            Can&apos;t find someone?{' '}
+            <button className="link-btn" onClick={() => setMode('link')}>
+              Add them by profile link
+            </button>{' '}
+            instead.
+          </p>
+        )}
+        </>
       )}
     </>
   );

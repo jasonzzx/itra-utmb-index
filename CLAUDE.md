@@ -41,8 +41,17 @@ npm run doctor    # is ITRA reachable from this machine?
   session briefly and retries once on 400/403 with a fresh token. Caching means
   this path runs rarely, so it is covered by unit tests rather than found in
   production.
-- **ITRA's per-runner endpoints return 401.** Search-by-name is the only public
-  path; runners are pinned by `itraRunnerId` / `utmbId` and matched on ID.
+- **ITRA's per-runner *API* endpoints return 401, but the runner page is
+  public.** `itra.run/RunnerSpace/-/<id>` redirects to the profile, whose HTML
+  embeds the index in a `var Model = {…}` blob — `fetchItraProfile` reads it,
+  and that is the only exact ITRA lookup there is. It has no race history, so
+  `fetchItraIndex` still searches first and falls back to the page.
+- **Runners are pinned by `itraRunnerId` / `utmbId` and matched on ID.** UTMB
+  has no per-runner endpoint, so a pinned UTMB runner still needs a name to
+  search with — which is why a UTMB profile slug (`2704.kilian.jornetburgada`)
+  is worth keeping and an ITRA one is not.
+- **`RunnerRef.alias` is display only.** Lookups always use `name`; an alias
+  would find nobody upstream.
 - **A UTMB `ip` of `0` means "no index in that category"**, not a zero score.
   Render it as `—` and omit it from breakdowns.
 - **`cacheComponents` is enabled** (Next 16). It rejects the `runtime` route

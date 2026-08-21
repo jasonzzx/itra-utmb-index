@@ -29,6 +29,7 @@ export function toRunnerList(
     ...(meta.description?.trim() ? { description: meta.description.trim() } : {}),
     runners: runners.map((r) => ({
       name: r.name.trim(),
+      ...(r.alias?.trim() ? { alias: r.alias.trim() } : {}),
       ...(r.itraRunnerId != null ? { itraRunnerId: r.itraRunnerId } : {}),
       ...(r.utmbId != null ? { utmbId: r.utmbId } : {}),
     })),

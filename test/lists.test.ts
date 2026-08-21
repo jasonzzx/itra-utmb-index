@@ -56,8 +56,21 @@ describe('parseList', () => {
     ['runners not an array', { name: 'X', runners: {} }],
     ['a runner without a name', { name: 'X', runners: [{ itraRunnerId: 1 }] }],
     ['a non-numeric id', { name: 'X', runners: [{ name: 'A', itraRunnerId: '1' }] }],
+    ['a non-string alias', { name: 'X', runners: [{ name: 'A', alias: 7 }] }],
   ])('rejects %s', (_label, input) => {
     expect(parseList(input)).toBeNull();
+  });
+
+  it('keeps a nickname, and treats a blank one as none', () => {
+    const parsed = parseList({
+      name: 'X',
+      runners: [
+        { name: 'A', alias: '  Big Lei  ' },
+        { name: 'B', alias: '   ' },
+      ],
+    });
+    expect(parsed!.runners[0].alias).toBe('Big Lei');
+    expect(parsed!.runners[1].alias).toBeUndefined();
   });
 
   it('drops unknown fields rather than passing them through', () => {

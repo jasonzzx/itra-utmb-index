@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { ago, initials, prettyName, shortRace } from '@/lib/format';
+import { ago, displayName, initials, prettyName, shortRace } from '@/lib/format';
+
+describe('displayName', () => {
+  it('prefers the nickname when there is one', () => {
+    expect(displayName({ name: 'Lei YANG', alias: 'Big Lei' })).toBe('Big Lei');
+  });
+
+  it('falls back to the softened registered name', () => {
+    expect(displayName({ name: 'Lei YANG' })).toBe('Lei Yang');
+    expect(displayName({ name: 'Lei YANG', alias: '   ' })).toBe('Lei Yang');
+  });
+});
 
 describe('prettyName', () => {
   it('softens the shouted surname ITRA returns', () => {

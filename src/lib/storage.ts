@@ -70,6 +70,7 @@ export function seedToRefs(seed: RunnerList): RunnerRef[] {
   return seed.runners.map((r, i) => ({
     id: `seed_${r.itraRunnerId ?? r.utmbId ?? i}`,
     name: r.name,
+    alias: r.alias,
     itraRunnerId: r.itraRunnerId,
     utmbId: r.utmbId,
   }));

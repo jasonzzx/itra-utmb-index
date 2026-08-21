@@ -2,8 +2,15 @@
 export interface RunnerRef {
   /** Stable local identifier, generated when the runner is added. */
   id: string;
-  /** Display name, also used as the upstream search term. */
+  /** The name the sources know them by, also used as the search term. */
   name: string;
+  /**
+   * What to call them on screen, when their registered name isn't it.
+   *
+   * Display only — a nickname would find nobody upstream, so lookups keep
+   * using `name`.
+   */
+  alias?: string;
   /** ITRA's RunnerId. Pins the runner so refreshes can't match the wrong person. */
   itraRunnerId?: number;
   /** UTMB's numeric id. */
@@ -61,5 +68,10 @@ export interface RunnerIndexes {
 export interface RunnerList {
   name: string;
   description?: string;
-  runners: Array<{ name: string; itraRunnerId?: number; utmbId?: number }>;
+  runners: Array<{
+    name: string;
+    alias?: string;
+    itraRunnerId?: number;
+    utmbId?: number;
+  }>;
 }

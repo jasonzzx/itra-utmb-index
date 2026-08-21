@@ -10,11 +10,14 @@ import type { RunnerRef } from '@/lib/types';
 export function RunnerListView({
   runners,
   onRemove,
+  onRename,
   emptyMessage,
   exportMeta,
 }: {
   runners: RunnerRef[];
   onRemove?: (id: string) => void;
+  /** Set a runner's nickname, or clear it with an empty string. */
+  onRename?: (id: string, alias: string) => void;
   emptyMessage?: string;
   /** Omit to hide the export button. */
   exportMeta?: ExportMetaDefaults;
@@ -66,6 +69,7 @@ export function RunnerListView({
             indexes={indexes[r.id]}
             loading={loading}
             onRemove={onRemove ? () => onRemove(r.id) : undefined}
+            onRename={onRename ? (alias) => onRename(r.id, alias) : undefined}
           />
         ))}
       </div>

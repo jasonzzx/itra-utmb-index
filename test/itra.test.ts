@@ -4,6 +4,33 @@ import fixture from './fixtures/itra-encrypted.json';
 const TOKEN_PAGE = (token: string) =>
   `<html><body><form><input name="__RequestVerificationToken" type="hidden" value="${token}" /></form></body></html>`;
 
+/**
+ * The runner page as ITRA serves it: the view model handed to the client
+ * inside an inline script, surrounded by braces and quotes that a regex would
+ * trip over.
+ */
+function RUNNER_PAGE(model: Record<string, unknown>): string {
+  return (
+    `<html><body><script>\n  $('#tab').click(function () { $('.load').show(); });\n` +
+    `  var Model = ${JSON.stringify(model)};\n</script></body></html>`
+  );
+}
+
+const PAGE_MODEL = {
+  runnerId: 999001,
+  firstName: 'Kilian',
+  lastName: 'JORNET BURGADA',
+  nationality: 'Spain',
+  gender: 'Male',
+  ageGroup: 'M 35-39',
+  performanceIndex: 939,
+  profilePicture: '/Files/Photos/abc.jpg',
+  performanceIndicatorInfos: [
+    { pi: 855, categoryId: 2, piIndex: 'Elite-3', backGroundColor: '#E25961' },
+    { pi: 939, categoryId: 0, piIndex: 'Elite-1', backGroundColor: '#BC4A51' },
+  ],
+};
+
 /** Build a Response-ish object with the header lookups the lib performs. */
 function res(
   body: unknown,
@@ -28,8 +55,9 @@ vi.mock('@/lib/http', () => ({
 }));
 
 const {
-  searchItra, searchItraWindow, fetchItraIndex, decryptResponse, resetItraSession,
-  itraInFlight, itraAccessNotice, ItraChallengedError, ItraBlockedError, ItraAccessError,
+  searchItra, searchItraWindow, fetchItraIndex, fetchItraProfile, extractPageModel,
+  decryptResponse, resetItraSession, itraInFlight, itraAccessNotice,
+  ItraChallengedError, ItraBlockedError, ItraAccessError,
 } = await import('@/lib/itra');
 
 beforeEach(() => {
@@ -210,11 +238,67 @@ describe('fetchItraIndex', () => {
     expect(r?.runnerId).toBe(999001);
   });
 
-  it('returns null when the pinned id is absent, never a wrong runner', async () => {
+  it('falls back to the profile page when search cannot reach the pinned id', async () => {
     outboundFetch
       .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
-      .mockResolvedValueOnce(res(fixture));
-    expect(await fetchItraIndex('anything', 12345)).toBeNull();
+      .mockResolvedValueOnce(res(fixture))
+      .mockResolvedValueOnce(
+        res(null, { text: RUNNER_PAGE({ ...PAGE_MODEL, runnerId: 12345 }) }),
+      );
+    const r = await fetchItraIndex('anything', 12345);
+    expect(r?.runnerId).toBe(12345);
+    expect(outboundFetch.mock.calls[2][0]).toContain('/RunnerSpace/-/12345');
+  });
+
+  it('never searches when there is no name to search with', async () => {
+    outboundFetch.mockResolvedValueOnce(res(null, { text: RUNNER_PAGE(PAGE_MODEL) }));
+    const r = await fetchItraIndex('', 999001);
+    expect(r?.runnerId).toBe(999001);
+    expect(outboundFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('fetchItraProfile', () => {
+  it('reads the index off the runner page, agreeing with search on format', async () => {
+    outboundFetch.mockResolvedValueOnce(res(null, { text: RUNNER_PAGE(PAGE_MODEL) }));
+    const r = await fetchItraProfile(999001);
+    expect(r).toMatchObject({
+      runnerId: 999001,
+      name: 'Kilian JORNET BURGADA',
+      pi: 939,
+      // Search spells these "Elite 1" and "35-39"; the page hyphenates and
+      // prefixes, and a card may be painted from either.
+      piIndex: 'Elite 1',
+      ageGroup: '35-39',
+      colorCode: '#BC4A51',
+      photoUrl: 'https://itra.run/Files/Photos/abc.jpg',
+    });
+  });
+
+  it('treats an unknown id as an answer, not a failure', async () => {
+    outboundFetch.mockResolvedValueOnce(res(null, { status: 404 }));
+    expect(await fetchItraProfile(1)).toBeNull();
+  });
+
+  it('refuses a page for somebody else rather than pinning the wrong runner', async () => {
+    outboundFetch.mockResolvedValueOnce(res(null, { text: RUNNER_PAGE(PAGE_MODEL) }));
+    expect(await fetchItraProfile(4242)).toBeNull();
+  });
+
+  it('reports bot protection the same way search does', async () => {
+    outboundFetch.mockResolvedValueOnce(res(null, { status: 403 }));
+    await expect(fetchItraProfile(999001)).rejects.toBeInstanceOf(ItraBlockedError);
+  });
+});
+
+describe('extractPageModel', () => {
+  it('finds the end of the object past braces and quotes inside strings', () => {
+    const model = { name: 'A }{ "trap"', nested: { deep: [{ x: '\\' }] }, id: 7 };
+    expect(extractPageModel(RUNNER_PAGE(model))).toEqual(model);
+  });
+
+  it('returns null for a page with no model at all', () => {
+    expect(extractPageModel('<html><body>nothing here</body></html>')).toBeNull();
   });
 });
 

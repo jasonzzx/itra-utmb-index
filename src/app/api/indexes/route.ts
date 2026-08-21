@@ -17,7 +17,12 @@ function parseRunners(input: unknown): RunnerRef[] | null {
     if (typeof raw !== 'object' || raw === null) return null;
     const r = raw as Record<string, unknown>;
     if (typeof r.id !== 'string' || typeof r.name !== 'string') return null;
-    if (!r.name.trim()) return null;
+    const pinned =
+      typeof r.itraRunnerId === 'number' || typeof r.utmbId === 'number';
+    // A name is how an unpinned runner is found at all, so it's required —
+    // but somebody added from a profile link may only ever have had an id,
+    // and ITRA resolves that on its own.
+    if (!r.name.trim() && !pinned) return null;
     out.push({
       id: r.id,
       name: r.name,
@@ -39,7 +44,11 @@ export async function POST(request: Request) {
   const runners = parseRunners(body.runners);
   if (!runners) {
     return NextResponse.json(
-      { error: 'Expected `runners` to be an array of { id, name }' },
+      {
+        error:
+          'Expected `runners` to be an array of { id, name }, where an entry ' +
+          'with an empty name carries an itraRunnerId or utmbId instead',
+      },
       { status: 400 },
     );
   }

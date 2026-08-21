@@ -399,17 +399,161 @@ export async function searchItraWindow(
 }
 
 /**
- * ITRA's per-runner endpoints require auth (401), so a pinned runner is
- * refreshed by re-searching their name and matching on RunnerId.
+ * The runner's own page, which resolves by id alone: ITRA redirects
+ * `/RunnerSpace/<anything>/<id>` to that runner's canonical URL.
+ *
+ * The slug on the canonical URL is not a name we can search with — it strips
+ * the spaces out of a surname, so Kilian's "jornetburgada" finds nobody — but
+ * we never need to, because the id is enough.
+ */
+const runnerSpaceUrl = (runnerId: number) => `${ORIGIN}/RunnerSpace/-/${runnerId}`;
+
+/** The page hands its view model to the client as `var Model = {...}`. */
+const MODEL_MARKER = 'var Model = ';
+
+/**
+ * Cut the JSON object out of the inline script by matching braces.
+ *
+ * A regex can't do this: the object is 200KB of nested records containing
+ * every brace and quote you can think of, so the end has to be found by
+ * counting, with string literals and their escapes skipped over.
+ */
+export function extractPageModel(html: string): unknown {
+  const marker = html.indexOf(MODEL_MARKER);
+  if (marker === -1) return null;
+  const start = html.indexOf('{', marker + MODEL_MARKER.length);
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < html.length; i++) {
+    const ch = html[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) {
+      try {
+        return JSON.parse(html.slice(start, i + 1));
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+/** The per-category indexes the page carries; category 0 is the general one. */
+interface ItraPagePerformance {
+  pi: number | null;
+  categoryId: number;
+  piIndex: string | null;
+  backGroundColor: string | null;
+}
+
+interface ItraPageModel {
+  runnerId?: number;
+  firstName?: string | null;
+  lastName?: string | null;
+  nationality?: string | null;
+  gender?: string | null;
+  ageGroup?: string | null;
+  performanceIndex?: number | null;
+  profilePicture?: string | null;
+  performanceIndicatorInfos?: ItraPagePerformance[] | null;
+}
+
+function pageToIndex(model: ItraPageModel): ItraIndex | null {
+  if (typeof model.runnerId !== 'number') return null;
+  const general = (model.performanceIndicatorInfos ?? []).find(
+    (p) => p?.categoryId === 0,
+  );
+  const isDefaultPic = model.profilePicture?.includes('default');
+  return {
+    runnerId: model.runnerId,
+    name: `${model.firstName ?? ''} ${model.lastName ?? ''}`.trim(),
+    pi: (model.performanceIndex ?? general?.pi ?? null) as number,
+    // The page hyphenates what search spaces — "Elite-1" vs "Elite 1" — and
+    // the two have to agree, because a card may be painted from either.
+    piIndex: (general?.piIndex ?? '').replace(/-/g, ' ').trim(),
+    colorCode: general?.backGroundColor ?? '#888888',
+    nationality: model.nationality ?? '',
+    gender: model.gender ?? '',
+    // The page prefixes the band with the gender ("M 35-39"); search doesn't.
+    ageGroup: (model.ageGroup ?? '').replace(/^[MF]\s+/, '').trim(),
+    // Results load over a later request the page makes for itself, so this
+    // route simply has none to offer.
+    recentRaces: [],
+    profileUrl: runnerSpaceUrl(model.runnerId),
+    photoUrl:
+      model.profilePicture && !isDefaultPic
+        ? `${ORIGIN}${model.profilePicture}`
+        : null,
+  };
+}
+
+/**
+ * Look a runner up by id, straight off their public profile page.
+ *
+ * Their private API endpoints answer 401, but the page itself is public and
+ * embeds the index, so this is the one exact lookup available — no name, no
+ * anti-forgery handshake, and no chance of landing on a namesake.
+ */
+export async function fetchItraProfile(
+  runnerId: number,
+): Promise<ItraIndex | null> {
+  assertNotCoolingDown();
+  const res = await withSlot(() =>
+    outboundFetch(runnerSpaceUrl(runnerId), {
+      headers: {
+        'User-Agent': USER_AGENT,
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      cache: 'no-store',
+    }),
+  );
+  assertNotBlocked(res);
+  // An id nobody holds is a 404, which is an answer rather than a failure.
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`ITRA runner page returned ${res.status}`);
+  }
+
+  const model = extractPageModel(await res.text()) as ItraPageModel | null;
+  if (!model) {
+    throw new Error('ITRA runner page did not contain a runner');
+  }
+  const index = pageToIndex(model);
+  // A redirect to somebody else would be worse than no answer at all.
+  return index && index.runnerId === runnerId ? index : null;
+}
+
+/**
+ * The index for one runner.
+ *
+ * Search comes first because it carries the recent races a card shows, but it
+ * only reaches the first 25 rows for a name — not enough for a common one —
+ * so a pinned runner it misses is fetched from their profile page instead.
+ * Without a pin there is nothing to verify against, so the top row is it.
  */
 export async function fetchItraIndex(
   name: string,
   runnerId?: number,
 ): Promise<ItraIndex | null> {
-  const results = await searchItra(name, 25);
   if (runnerId != null) {
-    return results.find((r) => r.runnerId === runnerId) ?? null;
+    const results = name.trim().length >= 2 ? await searchItra(name, 25) : [];
+    return (
+      results.find((r) => r.runnerId === runnerId) ??
+      (await fetchItraProfile(runnerId))
+    );
   }
+  const results = await searchItra(name, 25);
   return results[0] ?? null;
 }
 

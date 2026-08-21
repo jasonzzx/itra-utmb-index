@@ -12,7 +12,7 @@ needed.
   "name": "CRIT",
   "description": "Runners the CRIT crew follows",
   "runners": [
-    { "name": "Kilian Jornet", "itraRunnerId": 2704, "utmbId": 2704 }
+    { "name": "Kilian Jornet", "alias": "Kilian", "itraRunnerId": 2704, "utmbId": 2704 }
   ]
 }
 ```
@@ -21,7 +21,8 @@ needed.
 | --- | --- | --- |
 | `name` | yes | Shown as the page heading. |
 | `description` | no | Subtitle. |
-| `runners[].name` | yes | Also used as the upstream search term. |
+| `runners[].name` | yes | The name the sources know them by; also the search term. |
+| `runners[].alias` | no | Nickname shown instead of the name. Display only. |
 | `runners[].itraRunnerId` | no | Pins the ITRA profile. |
 | `runners[].utmbId` | no | Pins the UTMB profile. |
 
@@ -30,14 +31,15 @@ the URL.
 
 ## Why pin the IDs
 
-Neither source lets us look a runner up by ID directly (ITRA's per-runner
-endpoints return 401), so refreshing means searching the name again. Without an
-ID, two runners sharing a name are indistinguishable and the app may show the
-wrong person's index. With an ID, the match is exact.
+A refresh searches the name again, and without an ID two runners sharing a name
+are indistinguishable — the app may show the wrong person's index. With an ID
+the match is exact, and an ITRA ID goes further: it resolves off the runner's
+own profile page, so somebody search would bury hundreds of rows down is still
+found.
 
-The easiest way to find the IDs is to search for the runner in the app and add
-them — the resolved IDs are stored with the entry, and the list can be exported
-from the list screen.
+The easiest way to get the IDs is to add the runner in the app — either search
+for them or paste their profile links — and export the list from the list
+screen. The IDs are stored with the entry.
 
 ## Editing someone else's list
 

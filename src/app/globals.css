@@ -271,6 +271,9 @@ input {
 
 .stamp { color: var(--text-dim); font-size: 11.5px; }
 
+/* Inside a form the errors sit between fields, so they need the same gap. */
+.sheet .err { margin-bottom: 12px; }
+
 .remove {
   align-self: flex-start;
   color: var(--danger);
@@ -425,6 +428,51 @@ input {
 }
 
 .text-btn:active { transform: scale(0.96); }
+
+/* Two ways to add a runner, one tap apart. */
+.seg {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.seg button {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.seg button[data-active='true'] {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* What the pasted links resolved to, before committing to the add. */
+.preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+/* The registered name, kept visible under a nickname. */
+.alias-of {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .sheet {
   background: var(--surface);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ago, initials, prettyName } from '@/lib/format';
+import { ago, displayName, initials, prettyName } from '@/lib/format';
 import type { RunnerIndexes, RunnerRef, UtmbCategory } from '@/lib/types';
 
 /** Profile photos 404 often enough that a broken-image icon is a real risk. */
@@ -51,11 +51,14 @@ export function RunnerCard({
   indexes,
   loading,
   onRemove,
+  onRename,
 }: {
   runner: RunnerRef;
   indexes?: RunnerIndexes;
   loading: boolean;
   onRemove?: () => void;
+  /** Omit to hide the nickname field, e.g. on a list nobody has forked. */
+  onRename?: (alias: string) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -65,6 +68,9 @@ export function RunnerCard({
   const utmbErr = indexes && !indexes.utmb.ok ? indexes.utmb.error : null;
 
   const photo = itra?.photoUrl ?? utmb?.photoUrl ?? null;
+  // The sources know their registered name; the alias is what you call them.
+  const sourceName = prettyName(itra?.name ?? utmb?.name ?? runner.name);
+  const label = displayName({ name: sourceName, alias: runner.alias });
   const meta = [
     itra?.nationality || utmb?.nationality,
     itra?.ageGroup || utmb?.ageGroup,
@@ -101,11 +107,12 @@ export function RunnerCard({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <Avatar src={photo} name={runner.name} />
+        <Avatar src={photo} name={label} />
         <div className="who">
-          <div className="name">
-            {prettyName(itra?.name ?? utmb?.name ?? runner.name)}
-          </div>
+          <div className="name">{label}</div>
+          {/* With a nickname on the card, the registered name is the only way
+              to tell which runner it actually is. */}
+          {runner.alias?.trim() && <div className="alias-of">{sourceName}</div>}
           <div className="meta">{meta || (loading ? 'Loading…' : '—')}</div>
         </div>
         <div className="badges">
@@ -170,6 +177,19 @@ export function RunnerCard({
 
           {indexes && (
             <div className="stamp">Updated {ago(indexes.itra.fetchedAt)}</div>
+          )}
+
+          {onRename && (
+            <label className="field">
+              <span>Nickname</span>
+              <input
+                value={runner.alias ?? ''}
+                onChange={(e) => onRename(e.target.value)}
+                placeholder={sourceName}
+                autoComplete="off"
+                aria-label={`Nickname for ${sourceName}`}
+              />
+            </label>
           )}
 
           {onRemove && (

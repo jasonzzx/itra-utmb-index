@@ -17,7 +17,7 @@ npm run dev          # http://localhost:3000
 | Route | What it is |
 | --- | --- |
 | `/` | **My Runners** — your personal list, stored in local storage |
-| `/search` | Add a runner; searches ITRA and UTMB together |
+| `/search` | Add a runner — search both sources by name, or paste profile links |
 | `/crit` | The roster committed at `lists/crit.json` |
 | `/<slug>` | Any other `lists/<slug>.json` |
 
@@ -50,16 +50,21 @@ search page. The response body is AES-256-CBC encrypted, with the ciphertext,
 IV, and key all shipped together as `response1`/`response2`/`response3` — the
 official site decrypts it in WebCrypto and so do we.
 
-Two consequences worth knowing:
+Three consequences worth knowing:
 
 - **The CSRF token expires within minutes.** One token is reused across a batch
   of lookups (5 parallel searches complete in ~0.6s), and a 400/403 triggers one
   retry with a fresh token. This is covered by a unit test, because caching
   means the handshake runs rarely and a silent break would be easy to miss.
-- **ITRA's per-runner endpoints require auth** and return 401, so search-by-name
-  is the only public path. Saved runners store the resolved `itraRunnerId` and
-  `utmbId`, and refreshes re-search the name but match strictly on ID — two
-  runners with the same name can never be confused.
+- **ITRA's per-runner *API* endpoints require auth** and return 401, but the
+  runner's own page does not: `itra.run/RunnerSpace/-/<id>` redirects to their
+  profile, which embeds the index in a `var Model = {…}` blob. That is the one
+  exact ITRA lookup available — no name, no anti-forgery handshake, no chance of
+  a namesake. It carries no race history, so a saved runner is still refreshed
+  by search first, and the page is the fallback for anyone search can't reach.
+- **Saved runners store the resolved `itraRunnerId` and `utmbId`**, and every
+  refresh matches strictly on ID — two runners with the same name can never be
+  confused.
 
 ### ⚠️ ITRA and datacenter IPs
 
@@ -101,6 +106,23 @@ concurrent callers share a single CSRF handshake, a refusal starts a 60s
 cooldown during which no request is made, and a window stops after the first
 page when the results have already ended.
 
+## Adding a runner
+
+Two ways, on the same screen:
+
+- **Search by name** finds most people in one go.
+- **Paste a link** is the exact one. Open a runner on `itra.run` or
+  `utmb.world` and paste their profile URL; the id in it is one specific
+  person. This is the way in when searching cannot get there — a common name
+  ranked hundreds of rows down, or an ITRA that is refusing this network
+  entirely. A pinned runner is added even while a source is unreachable, and
+  the figure appears by itself once it can be fetched.
+
+Every runner can also carry a **nickname**, set in the same form or in the
+field on their expanded card. It is display only — lookups keep using the name
+the sources registered, which stays visible under the nickname — and it
+travels with an exported list.
+
 ## Caching
 
 Indexes only move when race results are scored, so they're cached server-side
@@ -131,8 +153,9 @@ npm run build
 
 The live tests are opt-in so CI doesn't depend on two third-party sites. The
 offline tests cover the AES decrypt against a recorded fixture, the
-stale-token retry, ID pinning, `ip: 0` handling, and schema validation of every
-committed list — a malformed shared list fails CI rather than the page.
+stale-token retry, ID pinning, profile-URL parsing, `ip: 0` handling, and schema
+validation of every committed list — a malformed shared list fails CI rather
+than the page.
 
 ## A note on the sources
 

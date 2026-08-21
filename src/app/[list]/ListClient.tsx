@@ -19,11 +19,23 @@ export function ListClient({ slug, seed }: { slug: string; seed: RunnerList }) {
 
   // The first edit forks the committed roster into local storage; the file in
   // the repo is never touched, so the owner's shared list stays as published.
-  function remove(id: string) {
-    const next = runners.filter((r) => r.id !== id);
+  function fork(next: RunnerRef[]) {
     setRunners(next);
     writeFork(slug, next);
     setForked(true);
+  }
+
+  function remove(id: string) {
+    fork(runners.filter((r) => r.id !== id));
+  }
+
+  function rename(id: string, alias: string) {
+    // An emptied box means "no nickname", not a nickname of "".
+    fork(
+      runners.map((r) =>
+        r.id === id ? { ...r, alias: alias.trim() ? alias : undefined } : r,
+      ),
+    );
   }
 
   function reset() {
@@ -51,6 +63,7 @@ export function ListClient({ slug, seed }: { slug: string; seed: RunnerList }) {
         <RunnerListView
           runners={runners}
           onRemove={remove}
+          onRename={rename}
           emptyMessage="This list is empty."
           exportMeta={{
             defaultName: seed.name,

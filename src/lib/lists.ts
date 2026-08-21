@@ -37,10 +37,14 @@ export function parseList(input: unknown): RunnerList | null {
     if (typeof entry !== 'object' || entry === null) return null;
     const r = entry as Record<string, unknown>;
     if (typeof r.name !== 'string' || !r.name.trim()) return null;
+    if (r.alias !== undefined && typeof r.alias !== 'string') return null;
     if (r.itraRunnerId !== undefined && typeof r.itraRunnerId !== 'number') return null;
     if (r.utmbId !== undefined && typeof r.utmbId !== 'number') return null;
     runners.push({
       name: r.name,
+      // An empty alias is the same as none, so it doesn't reach the UI as a
+      // blank name.
+      alias: (r.alias as string | undefined)?.trim() || undefined,
       itraRunnerId: r.itraRunnerId as number | undefined,
       utmbId: r.utmbId as number | undefined,
     });

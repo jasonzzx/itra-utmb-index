@@ -17,6 +17,15 @@ export function prettyName(name: string): string {
     .join(' ');
 }
 
+/**
+ * What to call a runner on screen: their nickname when they have one,
+ * otherwise the name the sources registered, softened.
+ */
+export function displayName(runner: { name: string; alias?: string }): string {
+  const alias = runner.alias?.trim();
+  return alias || prettyName(runner.name);
+}
+
 export function initials(name: string): string {
   return name
     .split(/\s+/)
