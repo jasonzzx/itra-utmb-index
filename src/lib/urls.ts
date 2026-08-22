@@ -20,8 +20,19 @@ export interface ParsedProfileUrl {
   nameHint: string | null;
 }
 
+const ITRA_ORIGIN = 'https://itra.run';
 const ITRA_HOST = /(^|\.)itra\.run$/;
 const UTMB_HOST = /(^|\.)utmb\.world$/;
+
+/**
+ * A runner's ITRA page addressed by id alone.
+ *
+ * ITRA redirects `/RunnerSpace/<anything>/<id>` to that runner's canonical
+ * URL, so the slug carries no weight and we don't have to know their name.
+ */
+export function itraProfileUrl(runnerId: number): string {
+  return `${ITRA_ORIGIN}/RunnerSpace/-/${runnerId}`;
+}
 
 /** Slug words are lowercase; a card reading "Kilian Jornetburgada" beats "kilian jornetburgada". */
 function titleCase(words: string[]): string | null {
@@ -134,3 +145,29 @@ export function parseUtmbUrl(input: string): ParsedProfileUrl | null {
   }
   return null;
 }
+
+/** A parse attempt, with the message to show when there is text but no link. */
+export interface ParseAttempt {
+  value: ParsedProfileUrl | null;
+  error: string | null;
+}
+
+function attempt(
+  input: string,
+  reader: (s: string) => ParsedProfileUrl | null,
+  /** Named with its article, so the message reads "an ITRA runner link". */
+  label: string,
+): ParseAttempt {
+  if (!input.trim()) return { value: null, error: null };
+  const value = reader(input);
+  return {
+    value,
+    error: value ? null : `That doesn't look like ${label} runner link.`,
+  };
+}
+
+export const readItraUrl = (input: string): ParseAttempt =>
+  attempt(input, parseItraUrl, 'an ITRA');
+
+export const readUtmbUrl = (input: string): ParseAttempt =>
+  attempt(input, parseUtmbUrl, 'a UTMB');

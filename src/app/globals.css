@@ -465,6 +465,23 @@ input {
   border: 1px solid var(--border);
 }
 
+/* Correcting a runner already on a list, folded away until asked for. */
+.editor {
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.editor .field:last-of-type { margin-bottom: 0; }
+.editor .err, .editor .warn, .editor .sheet-hint { margin: 10px 0 0; }
+
+.text-btn.wide {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
 /* The registered name, kept visible under a nickname. */
 .alias-of {
   font-size: 11.5px;

@@ -2,31 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { displayName, prettyName } from '@/lib/format';
-import { parseItraUrl, parseUtmbUrl, type ParsedProfileUrl } from '@/lib/urls';
+import { readItraUrl, readUtmbUrl } from '@/lib/urls';
 import type { RunnerIndexes, RunnerRef } from '@/lib/types';
 
 /** The provisional runner sent for the preview lookup. */
 const PREVIEW_ID = 'preview';
-
-interface Parsed {
-  value: ParsedProfileUrl | null;
-  /** Set when there is text in the box that isn't a link we recognise. */
-  error: string | null;
-}
-
-function parse(
-  input: string,
-  reader: (s: string) => ParsedProfileUrl | null,
-  /** Named with its article, so the message reads "an ITRA runner link". */
-  label: string,
-): Parsed {
-  if (!input.trim()) return { value: null, error: null };
-  const value = reader(input);
-  return {
-    value,
-    error: value ? null : `That doesn't look like ${label} runner link.`,
-  };
-}
 
 /**
  * Adding a runner by pasting their profile links.
@@ -52,8 +32,8 @@ export function AddByLink({
   const [looking, setLooking] = useState(false);
   const [added, setAdded] = useState<string | null>(null);
 
-  const itra = useMemo(() => parse(itraUrl, parseItraUrl, 'an ITRA'), [itraUrl]);
-  const utmb = useMemo(() => parse(utmbUrl, parseUtmbUrl, 'a UTMB'), [utmbUrl]);
+  const itra = useMemo(() => readItraUrl(itraUrl), [itraUrl]);
+  const utmb = useMemo(() => readUtmbUrl(utmbUrl), [utmbUrl]);
 
   const itraRunnerId = itra.value?.id;
   const utmbId = utmb.value?.id;

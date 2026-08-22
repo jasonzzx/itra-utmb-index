@@ -52,6 +52,9 @@ npm run doctor    # is ITRA reachable from this machine?
   is worth keeping and an ITRA one is not.
 - **`RunnerRef.alias` is display only.** Lookups always use `name`; an alias
   would find nobody upstream.
+- **Re-pinning UTMB has to carry the name with it.** `fetchUtmbIndex` searches
+  `name` and matches on id, so a new `utmbId` beside a stale name resolves to
+  nothing. `RunnerEditor` takes the name from the link's slug for that reason.
 - **A UTMB `ip` of `0` means "no index in that category"**, not a zero score.
   Render it as `—` and omit it from breakdowns.
 - **`cacheComponents` is enabled** (Next 16). It rejects the `runtime` route

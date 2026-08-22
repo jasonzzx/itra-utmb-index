@@ -118,10 +118,17 @@ Two ways, on the same screen:
   entirely. A pinned runner is added even while a source is unreachable, and
   the figure appears by itself once it can be fetched.
 
-Every runner can also carry a **nickname**, set in the same form or in the
-field on their expanded card. It is display only — lookups keep using the name
-the sources registered, which stays visible under the nickname — and it
-travels with an exported list.
+Every runner can also carry a **nickname**. It is display only — lookups keep
+using the name the sources registered, which stays visible under the nickname —
+and it travels with an exported list.
+
+Both are editable afterwards. Expanding a runner's card and choosing **Edit
+nickname and links** shows the same three fields, prefilled with what they are
+pinned to now: paste a link to re-pin a source, clear one to unpin it. That is
+how a runner added while ITRA was unreachable gets their ITRA half, and how a
+name-matched source that landed on a namesake gets corrected. Re-pinning UTMB
+also updates the stored name, because UTMB has no per-runner endpoint and finds
+a pinned runner by searching that name.
 
 ## Caching
 

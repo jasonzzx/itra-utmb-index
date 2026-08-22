@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { parseItraUrl, parseUtmbUrl } from '../src/lib/urls';
+import {
+  itraProfileUrl,
+  parseItraUrl,
+  parseUtmbUrl,
+  readItraUrl,
+  readUtmbUrl,
+} from '../src/lib/urls';
 
 describe('parseItraUrl', () => {
   it('reads the canonical surname.firstname.id slug', () => {
@@ -55,5 +61,35 @@ describe('parseUtmbUrl', () => {
   it('rejects an ITRA link and anything unparseable', () => {
     expect(parseUtmbUrl('https://itra.run/RunnerSpace/jornetburgada.kilian.2704')).toBeNull();
     expect(parseUtmbUrl('https://utmb.world/utmb-index/runner-search')).toBeNull();
+  });
+});
+
+describe('itraProfileUrl', () => {
+  it('addresses a runner by id, and parses back to the same id', () => {
+    const url = itraProfileUrl(2704);
+    expect(url).toBe('https://itra.run/RunnerSpace/-/2704');
+    expect(parseItraUrl(url)?.id).toBe(2704);
+  });
+});
+
+describe('readItraUrl / readUtmbUrl', () => {
+  it('says nothing about an empty box', () => {
+    expect(readItraUrl('   ')).toEqual({ value: null, error: null });
+    expect(readUtmbUrl('')).toEqual({ value: null, error: null });
+  });
+
+  it('names the source, with its article, when the text is not a link', () => {
+    expect(readItraUrl('nope').error).toBe(
+      "That doesn't look like an ITRA runner link.",
+    );
+    expect(readUtmbUrl('nope').error).toBe(
+      "That doesn't look like a UTMB runner link.",
+    );
+  });
+
+  it('reports no error once it parses', () => {
+    const read = readUtmbUrl('https://utmb.world/runner/2704.kilian.jornetburgada');
+    expect(read.error).toBeNull();
+    expect(read.value?.id).toBe(2704);
   });
 });

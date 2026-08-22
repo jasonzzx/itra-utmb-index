@@ -1,5 +1,6 @@
 import { webcrypto } from 'node:crypto';
 import { outboundFetch } from './http';
+import { itraProfileUrl } from './urls';
 import type { ItraIndex } from './types';
 
 const ORIGIN = 'https://itra.run';
@@ -399,14 +400,11 @@ export async function searchItraWindow(
 }
 
 /**
- * The runner's own page, which resolves by id alone: ITRA redirects
- * `/RunnerSpace/<anything>/<id>` to that runner's canonical URL.
- *
- * The slug on the canonical URL is not a name we can search with — it strips
- * the spaces out of a surname, so Kilian's "jornetburgada" finds nobody — but
- * we never need to, because the id is enough.
+ * The runner's own page resolves by id alone — see `itraProfileUrl`. The slug
+ * on the canonical URL is not a name we can search with (it strips the spaces
+ * out of a surname, so Kilian's "jornetburgada" finds nobody), but we never
+ * need one, because the id is enough.
  */
-const runnerSpaceUrl = (runnerId: number) => `${ORIGIN}/RunnerSpace/-/${runnerId}`;
 
 /** The page hands its view model to the client as `var Model = {...}`. */
 const MODEL_MARKER = 'var Model = ';
@@ -489,7 +487,7 @@ function pageToIndex(model: ItraPageModel): ItraIndex | null {
     // Results load over a later request the page makes for itself, so this
     // route simply has none to offer.
     recentRaces: [],
-    profileUrl: runnerSpaceUrl(model.runnerId),
+    profileUrl: itraProfileUrl(model.runnerId),
     photoUrl:
       model.profilePicture && !isDefaultPic
         ? `${ORIGIN}${model.profilePicture}`
@@ -509,7 +507,7 @@ export async function fetchItraProfile(
 ): Promise<ItraIndex | null> {
   assertNotCoolingDown();
   const res = await withSlot(() =>
-    outboundFetch(runnerSpaceUrl(runnerId), {
+    outboundFetch(itraProfileUrl(runnerId), {
       headers: {
         'User-Agent': USER_AGENT,
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { RunnerEditor } from './RunnerEditor';
 import { ago, displayName, initials, prettyName } from '@/lib/format';
 import type { RunnerIndexes, RunnerRef, UtmbCategory } from '@/lib/types';
 
@@ -51,16 +52,17 @@ export function RunnerCard({
   indexes,
   loading,
   onRemove,
-  onRename,
+  onEdit,
 }: {
   runner: RunnerRef;
   indexes?: RunnerIndexes;
   loading: boolean;
   onRemove?: () => void;
-  /** Omit to hide the nickname field, e.g. on a list nobody has forked. */
-  onRename?: (alias: string) => void;
+  /** Change the nickname or either pin. Omit to make the card read-only. */
+  onEdit?: (patch: Partial<RunnerRef>) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const itra = indexes?.itra.ok ? indexes.itra.data : null;
   const utmb = indexes?.utmb.ok ? indexes.utmb.data : null;
@@ -179,17 +181,20 @@ export function RunnerCard({
             <div className="stamp">Updated {ago(indexes.itra.fetchedAt)}</div>
           )}
 
-          {onRename && (
-            <label className="field">
-              <span>Nickname</span>
-              <input
-                value={runner.alias ?? ''}
-                onChange={(e) => onRename(e.target.value)}
-                placeholder={sourceName}
-                autoComplete="off"
-                aria-label={`Nickname for ${sourceName}`}
-              />
-            </label>
+          {onEdit && (
+            <>
+              <button className="text-btn wide" onClick={() => setEditing((v) => !v)}>
+                {editing ? 'Done' : 'Edit nickname and links'}
+              </button>
+              {editing && (
+                <RunnerEditor
+                  runner={runner}
+                  itra={itra}
+                  utmb={utmb}
+                  onEdit={onEdit}
+                />
+              )}
+            </>
           )}
 
           {onRemove && (

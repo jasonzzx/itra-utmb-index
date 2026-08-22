@@ -29,13 +29,8 @@ export function ListClient({ slug, seed }: { slug: string; seed: RunnerList }) {
     fork(runners.filter((r) => r.id !== id));
   }
 
-  function rename(id: string, alias: string) {
-    // An emptied box means "no nickname", not a nickname of "".
-    fork(
-      runners.map((r) =>
-        r.id === id ? { ...r, alias: alias.trim() ? alias : undefined } : r,
-      ),
-    );
+  function edit(id: string, patch: Partial<RunnerRef>) {
+    fork(runners.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
 
   function reset() {
@@ -63,7 +58,7 @@ export function ListClient({ slug, seed }: { slug: string; seed: RunnerList }) {
         <RunnerListView
           runners={runners}
           onRemove={remove}
-          onRename={rename}
+          onEdit={edit}
           emptyMessage="This list is empty."
           exportMeta={{
             defaultName: seed.name,

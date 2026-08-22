@@ -18,13 +18,8 @@ export default function MyRunnersPage() {
     save(runners.filter((r) => r.id !== id));
   }
 
-  function rename(id: string, alias: string) {
-    // An emptied box means "no nickname", not a nickname of "".
-    save(
-      runners.map((r) =>
-        r.id === id ? { ...r, alias: alias.trim() ? alias : undefined } : r,
-      ),
-    );
+  function edit(id: string, patch: Partial<RunnerRef>) {
+    save(runners.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
 
   function save(next: RunnerRef[]) {
@@ -41,7 +36,7 @@ export default function MyRunnersPage() {
         <RunnerListView
           runners={runners}
           onRemove={remove}
-          onRename={rename}
+          onEdit={edit}
           emptyMessage="You're not following anyone yet."
           exportMeta={{ defaultName: 'My Runners', defaultSlug: 'my-runners' }}
         />
