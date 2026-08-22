@@ -27,6 +27,7 @@
     },
     {
       "name": "Jun Xian",
+      "alias": "发哥",
       "itraRunnerId": 863621,
       "itraUri": "xian.jun.863621",
       "utmbId": 863621,
@@ -34,6 +35,9 @@
     },
     {
       "name": "Xiu Yi Guan",
+      "alias": "Amy Guan",
+      "itraRunnerId": 7270019,
+      "itraUri": "guan.weixiu.7270019",
       "utmbId": 7770639,
       "utmbUri": "7770639.xiuyi.guan"
     },
@@ -59,6 +63,54 @@
       "itraUri": "chen.yu.7479205",
       "utmbId": 7388490,
       "utmbUri": "7388490.yu.chen"
+    },
+    {
+      "name": "Xi Chen",
+      "alias": "肉肉",
+      "itraRunnerId": 7472212,
+      "itraUri": "chen.xi.7472212",
+      "utmbId": 7741875,
+      "utmbUri": "7741875.xi.chen"
+    },
+    {
+      "name": "Yang ZHAO",
+      "alias": "Zhao Yang",
+      "itraRunnerId": 667663,
+      "itraUri": "zhao.yang.667663",
+      "utmbId": 667663,
+      "utmbUri": "667663.yang.zhao"
+    },
+    {
+      "name": "Zhen Yu DENG",
+      "alias": "Allen Deng",
+      "itraRunnerId": 7664320,
+      "itraUri": "deng.zhenyu.7664320",
+      "utmbId": 7770835,
+      "utmbUri": "7770835.zhenyu.deng"
+    },
+    {
+      "name": "Hui LIN",
+      "alias": "Lin Hui",
+      "itraRunnerId": 7663904,
+      "itraUri": "lin.hui.7663904",
+      "utmbId": 7770723,
+      "utmbUri": "7770723.hui.lin"
+    },
+    {
+      "name": "Xuepei ZHOU",
+      "alias": "Alice Zhou",
+      "itraRunnerId": 7469662,
+      "itraUri": "zhou.xuepei.7469662",
+      "utmbId": 7770689,
+      "utmbUri": "7770689.xuepei.zhou"
+    },
+    {
+      "name": "Yingying ZHENG",
+      "alias": "Jenny Zheng",
+      "itraRunnerId": 7796567,
+      "itraUri": "zheng.yingying.7796567",
+      "utmbId": 7770657,
+      "utmbUri": "7770657.yingying.zheng"
     }
   ]
 }
