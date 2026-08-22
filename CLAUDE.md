@@ -46,10 +46,17 @@ npm run doctor    # is ITRA reachable from this machine?
   embeds the index in a `var Model = {…}` blob — `fetchItraProfile` reads it,
   and that is the only exact ITRA lookup there is. It has no race history, so
   `fetchItraIndex` still searches first and falls back to the page.
-- **Runners are pinned by `itraRunnerId` / `utmbId` and matched on ID.** UTMB
-  has no per-runner endpoint, so a pinned UTMB runner still needs a name to
-  search with — which is why a UTMB profile slug (`2704.kilian.jornetburgada`)
-  is worth keeping and an ITRA one is not.
+- **UTMB's runner page is the only exact UTMB lookup, and the slug addresses
+  it.** `utmb.world/runner/<uri>` 404s on the id alone, so `RunnerRef.utmbUri`
+  holds the whole `7388490.yu.chen`. Its `__NEXT_DATA__` carries the name,
+  nationality code and all five category indexes at once.
+- **A pinned UTMB id alone does not guarantee a result.** Search ranks by
+  index, and the id is only matched *within* the rows it returns — "Yu Chen" is
+  684 people, and the one at 382 is nowhere near them. `fetchUtmbIndex` searches
+  first (small payload, finds most people) and falls back to the page.
+- **Anything a lookup is made from belongs in `useRunnerIndexes`'s key.** It is
+  what sends an edited runner back to the server; a pin changed outside it lands
+  in storage and the card goes on showing the old answer.
 - **`RunnerRef.alias` is display only.** Lookups always use `name`; an alias
   would find nobody upstream.
 - **Re-pinning UTMB has to carry the name with it.** `fetchUtmbIndex` searches

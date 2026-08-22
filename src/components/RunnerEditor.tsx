@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { readItraUrl, readUtmbUrl, itraProfileUrl } from '@/lib/urls';
+import {
+  itraProfileUrl,
+  readItraUrl,
+  readUtmbUrl,
+  utmbProfileUrl,
+} from '@/lib/urls';
 import type { ItraIndex, RunnerRef, UtmbIndex } from '@/lib/types';
 
 /**
@@ -29,13 +34,22 @@ export function RunnerEditor({
   const [itraDraft, setItraDraft] = useState<string | null>(null);
   const [utmbDraft, setUtmbDraft] = useState<string | null>(null);
 
-  // What the runner is pinned to now. UTMB has no address that works from an
-  // id alone — its URLs carry a name slug — so an unresolved pin can only be
-  // named in the placeholder.
+  /**
+   * What the runner is pinned to now, built from the pins themselves rather
+   * than from whatever came back.
+   *
+   * Reading it off the resolved index made a link that hadn't resolved — the
+   * whole reason somebody opens this — come back to an empty box, which reads
+   * exactly like the edit was thrown away. The stored pins say what was saved
+   * whether or not the source answered.
+   */
   const itraCurrent =
-    itra?.profileUrl ??
-    (runner.itraRunnerId != null ? itraProfileUrl(runner.itraRunnerId) : '');
-  const utmbCurrent = utmb?.profileUrl ?? '';
+    runner.itraRunnerId != null
+      ? itraProfileUrl(runner.itraRunnerId)
+      : (itra?.profileUrl ?? '');
+  const utmbCurrent = runner.utmbUri
+    ? utmbProfileUrl(runner.utmbUri)
+    : (utmb?.profileUrl ?? '');
 
   const itraValue = itraDraft ?? itraCurrent;
   const utmbValue = utmbDraft ?? utmbCurrent;
@@ -65,23 +79,28 @@ export function RunnerEditor({
   function editUtmb(raw: string) {
     setUtmbDraft(raw);
     if (!raw.trim()) {
-      if (!strandedBy(runner.itraRunnerId)) onEdit({ utmbId: undefined });
+      if (!strandedBy(runner.itraRunnerId)) {
+        onEdit({ utmbId: undefined, utmbUri: undefined });
+      }
       return;
     }
     const parsed = readUtmbUrl(raw).value;
-    if (!parsed || parsed.id === runner.utmbId) return;
-    // UTMB is refreshed by searching the name and matching the id, so a new
-    // pin needs the name that goes with it or the lookup finds nobody. The
-    // slug in the link is exactly that name.
+    if (!parsed || (parsed.id === runner.utmbId && parsed.uri === runner.utmbUri)) {
+      return;
+    }
+    // The slug goes with it: UTMB 404s on the id alone, so it is the only way
+    // to reach somebody its search ranks out of sight. The name travels too,
+    // for the search that still runs first.
     onEdit({
       utmbId: parsed.id,
+      utmbUri: parsed.uri,
       ...(parsed.nameHint ? { name: parsed.nameHint } : {}),
     });
   }
 
   const stranded =
-    (itraParsed.value == null && !itraValue.trim() && strandedBy(runner.utmbId)) ||
-    (utmbParsed.value == null && !utmbValue.trim() && strandedBy(runner.itraRunnerId));
+    (!itraValue.trim() && strandedBy(runner.utmbId)) ||
+    (!utmbValue.trim() && strandedBy(runner.itraRunnerId));
 
   return (
     <div className="editor">

@@ -40,6 +40,7 @@ export function parseList(input: unknown): RunnerList | null {
     if (r.alias !== undefined && typeof r.alias !== 'string') return null;
     if (r.itraRunnerId !== undefined && typeof r.itraRunnerId !== 'number') return null;
     if (r.utmbId !== undefined && typeof r.utmbId !== 'number') return null;
+    if (r.utmbUri !== undefined && typeof r.utmbUri !== 'string') return null;
     runners.push({
       name: r.name,
       // An empty alias is the same as none, so it doesn't reach the UI as a
@@ -47,6 +48,7 @@ export function parseList(input: unknown): RunnerList | null {
       alias: (r.alias as string | undefined)?.trim() || undefined,
       itraRunnerId: r.itraRunnerId as number | undefined,
       utmbId: r.utmbId as number | undefined,
+      utmbUri: (r.utmbUri as string | undefined)?.trim() || undefined,
     });
   }
 

@@ -32,6 +32,7 @@ export function toRunnerList(
       ...(r.alias?.trim() ? { alias: r.alias.trim() } : {}),
       ...(r.itraRunnerId != null ? { itraRunnerId: r.itraRunnerId } : {}),
       ...(r.utmbId != null ? { utmbId: r.utmbId } : {}),
+      ...(r.utmbUri?.trim() ? { utmbUri: r.utmbUri.trim() } : {}),
     })),
   };
 }

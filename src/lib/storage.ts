@@ -73,6 +73,7 @@ export function seedToRefs(seed: RunnerList): RunnerRef[] {
     alias: r.alias,
     itraRunnerId: r.itraRunnerId,
     utmbId: r.utmbId,
+    utmbUri: r.utmbUri,
   }));
 }
 

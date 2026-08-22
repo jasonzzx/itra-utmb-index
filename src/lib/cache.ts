@@ -51,22 +51,25 @@ export async function cachedUtmbIndex(
   name: string,
   id?: number,
   category: UtmbCategory = 'general',
+  uri?: string,
 ): Promise<Stamped<UtmbIndex | null>> {
   'use cache';
+  // The uri addresses the same runner the id does, so it doesn't key the entry.
   cacheTag('indexes', utmbTag(id ?? name, category));
   cacheLife(INDEX_LIFE);
-  const data = await fetchUtmbIndex(name, id, category);
+  const data = await fetchUtmbIndex(name, id, category, uri);
   return { data, fetchedAt: new Date().toISOString() };
 }
 
 export async function cachedUtmbCategories(
   name: string,
   id: number,
+  uri?: string,
 ): Promise<Partial<Record<UtmbCategory, number>>> {
   'use cache';
   cacheTag('indexes', `utmb-categories:${id}`);
   cacheLife(INDEX_LIFE);
-  return fetchUtmbAllCategories(name, id);
+  return fetchUtmbAllCategories(name, id, uri);
 }
 
 export async function cachedItraSearch(

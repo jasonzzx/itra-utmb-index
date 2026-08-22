@@ -15,6 +15,14 @@ export interface RunnerRef {
   itraRunnerId?: number;
   /** UTMB's numeric id. */
   utmbId?: number;
+  /**
+   * UTMB's profile slug, `7388490.yu.chen`.
+   *
+   * The id alone can only be matched inside search results, so a runner search
+   * ranks out of reach stays unresolvable however well pinned. Their page has
+   * no such ceiling, and this is what addresses it.
+   */
+  utmbUri?: string;
 }
 
 export interface ItraIndex {
@@ -73,5 +81,6 @@ export interface RunnerList {
     alias?: string;
     itraRunnerId?: number;
     utmbId?: number;
+    utmbUri?: string;
   }>;
 }

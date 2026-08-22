@@ -292,9 +292,16 @@ async function postSearch(
   );
 }
 
+/**
+ * ITRA has two spellings for "no photo" — a filename containing "default", and
+ * the shared `/images/member-pics/user_N.png` placeholders. Both should give
+ * way to the initials avatar rather than paint a stock silhouette.
+ */
+const PLACEHOLDER_PIC = /default|\/member-pics\/user_/i;
+
 function toIndex(raw: ItraRawRunner): ItraIndex {
   const name = `${raw.FirstName} ${raw.LastName}`.trim();
-  const isDefaultPic = raw.ProfilePic?.includes('default');
+  const isDefaultPic = PLACEHOLDER_PIC.test(raw.ProfilePic ?? '');
   return {
     runnerId: raw.RunnerId,
     name,
@@ -471,7 +478,7 @@ function pageToIndex(model: ItraPageModel): ItraIndex | null {
   const general = (model.performanceIndicatorInfos ?? []).find(
     (p) => p?.categoryId === 0,
   );
-  const isDefaultPic = model.profilePicture?.includes('default');
+  const isDefaultPic = PLACEHOLDER_PIC.test(model.profilePicture ?? '');
   return {
     runnerId: model.runnerId,
     name: `${model.firstName ?? ''} ${model.lastName ?? ''}`.trim(),

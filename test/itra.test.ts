@@ -275,6 +275,15 @@ describe('fetchItraProfile', () => {
     });
   });
 
+  it('shows initials rather than ITRA\'s stock silhouette', async () => {
+    outboundFetch.mockResolvedValueOnce(
+      res(null, {
+        text: RUNNER_PAGE({ ...PAGE_MODEL, profilePicture: '/images/member-pics/user_1.png' }),
+      }),
+    );
+    expect((await fetchItraProfile(999001))?.photoUrl).toBeNull();
+  });
+
   it('treats an unknown id as an answer, not a failure', async () => {
     outboundFetch.mockResolvedValueOnce(res(null, { status: 404 }));
     expect(await fetchItraProfile(1)).toBeNull();

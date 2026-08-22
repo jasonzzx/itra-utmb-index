@@ -5,6 +5,7 @@ import {
   parseUtmbUrl,
   readItraUrl,
   readUtmbUrl,
+  utmbProfileUrl,
 } from '../src/lib/urls';
 
 describe('parseItraUrl', () => {
@@ -43,6 +44,8 @@ describe('parseUtmbUrl', () => {
   it('reads the id.first.last slug', () => {
     expect(parseUtmbUrl('https://utmb.world/runner/2704.kilian.jornetburgada')).toEqual({
       id: 2704,
+      // Kept because UTMB 404s on the id alone — the slug addresses the page.
+      uri: '2704.kilian.jornetburgada',
       nameHint: 'Kilian Jornetburgada',
     });
   });
@@ -50,11 +53,12 @@ describe('parseUtmbUrl', () => {
   it('finds the slug behind a locale prefix', () => {
     expect(parseUtmbUrl('https://utmb.world/en/runner/30959.courtney.dauwalter')).toEqual({
       id: 30959,
+      uri: '30959.courtney.dauwalter',
       nameHint: 'Courtney Dauwalter',
     });
   });
 
-  it('accepts a bare id', () => {
+  it('accepts a bare id, which carries neither a slug nor a name', () => {
     expect(parseUtmbUrl('30959')).toEqual({ id: 30959, nameHint: null });
   });
 
@@ -69,6 +73,14 @@ describe('itraProfileUrl', () => {
     const url = itraProfileUrl(2704);
     expect(url).toBe('https://itra.run/RunnerSpace/-/2704');
     expect(parseItraUrl(url)?.id).toBe(2704);
+  });
+});
+
+describe('utmbProfileUrl', () => {
+  it('round-trips a slug back to the page it addresses', () => {
+    const url = utmbProfileUrl('7388490.yu.chen');
+    expect(url).toBe('https://utmb.world/runner/7388490.yu.chen');
+    expect(parseUtmbUrl(url)).toMatchObject({ id: 7388490, uri: '7388490.yu.chen' });
   });
 });
 

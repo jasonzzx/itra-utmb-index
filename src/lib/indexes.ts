@@ -99,8 +99,10 @@ export async function getRunnerIndexes(
     ),
     settle(() =>
       force
-        ? stampNow(fetchUtmbIndex(runner.name, runner.utmbId))
-        : cachedUtmbIndex(runner.name, runner.utmbId),
+        ? stampNow(
+            fetchUtmbIndex(runner.name, runner.utmbId, 'general', runner.utmbUri),
+          )
+        : cachedUtmbIndex(runner.name, runner.utmbId, 'general', runner.utmbUri),
     ),
   ]);
 

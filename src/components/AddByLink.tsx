@@ -37,6 +37,8 @@ export function AddByLink({
 
   const itraRunnerId = itra.value?.id;
   const utmbId = utmb.value?.id;
+  // UTMB 404s on the id alone, so the slug is what makes the pin exact.
+  const utmbUri = utmb.value?.uri;
   const pinned = itraRunnerId != null || utmbId != null;
 
   /**
@@ -68,7 +70,9 @@ export function AddByLink({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            runners: [{ id: PREVIEW_ID, name: nameHint, itraRunnerId, utmbId }],
+            runners: [
+              { id: PREVIEW_ID, name: nameHint, itraRunnerId, utmbId, utmbUri },
+            ],
           }),
           signal: controller.signal,
         });
@@ -86,7 +90,7 @@ export function AddByLink({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [pinned, nameHint, itraRunnerId, utmbId]);
+  }, [pinned, nameHint, itraRunnerId, utmbId, utmbUri]);
 
   const itraData = preview?.itra.ok ? preview.itra.data : null;
   const utmbData = preview?.utmb.ok ? preview.utmb.data : null;
@@ -117,6 +121,7 @@ export function AddByLink({
       ...(alias.trim() ? { alias: alias.trim() } : {}),
       ...(itraRunnerId != null ? { itraRunnerId } : {}),
       ...(utmbId != null ? { utmbId } : {}),
+      ...(utmbUri ? { utmbUri } : {}),
     });
     setAdded(displayName({ name: resolvedName, alias }));
     setAlias('');

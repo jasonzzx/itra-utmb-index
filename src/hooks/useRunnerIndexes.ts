@@ -14,9 +14,15 @@ export function useRunnerIndexes(runners: RunnerRef[]) {
   const [error, setError] = useState<string | null>(null);
   const hydrated = useRef(false);
 
-  // Re-fetch when the set of runners changes, not on every render.
+  // Re-fetch when the set of runners changes, not on every render. Everything
+  // a lookup is made from belongs here: correcting a runner's pins or the name
+  // behind them has to send the card back to the server, or the edit lands in
+  // storage and the card goes on showing what the old one resolved to.
   const key = runners
-    .map((r) => `${r.id}:${r.itraRunnerId ?? ''}:${r.utmbId ?? ''}`)
+    .map(
+      (r) =>
+        `${r.id}:${r.name}:${r.itraRunnerId ?? ''}:${r.utmbId ?? ''}:${r.utmbUri ?? ''}`,
+    )
     .join('|');
 
   const load = useCallback(

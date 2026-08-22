@@ -81,8 +81,9 @@ export function RunnerCard({
     .filter(Boolean)
     .join(' · ');
 
-  // Five upstream calls, so only fetched once the card is actually expanded.
+  // An extra upstream fetch, so only made once the card is actually expanded.
   const utmbId = utmb?.id ?? runner.utmbId;
+  const utmbUri = utmb?.uri ?? runner.utmbUri;
   const [cats, setCats] = useState<Partial<Record<UtmbCategory, number>> | null>(
     null,
   );
@@ -90,17 +91,18 @@ export function RunnerCard({
   useEffect(() => {
     if (!open || cats || !utmbId) return;
     const controller = new AbortController();
-    fetch(
-      `/api/categories?name=${encodeURIComponent(runner.name)}&id=${utmbId}`,
-      { signal: controller.signal },
-    )
+    const url = new URL('/api/categories', window.location.origin);
+    url.searchParams.set('name', runner.name);
+    url.searchParams.set('id', String(utmbId));
+    if (utmbUri) url.searchParams.set('uri', utmbUri);
+    fetch(url, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((body) => body && setCats(body.categories))
       .catch(() => {
         /* the section just stays hidden */
       });
     return () => controller.abort();
-  }, [open, cats, utmbId, runner.name]);
+  }, [open, cats, utmbId, utmbUri, runner.name]);
 
   return (
     <div className="card">

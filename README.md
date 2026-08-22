@@ -43,6 +43,15 @@ server-side. The `ip` field is the UTMB Index, and it varies by `category`
 (`general`, `20k`, `50k`, `100k`, `100m`). An `ip` of `0` means the runner has
 no index in that category and is displayed as `—`, not as a zero score.
 
+Search ranks by index, and there is no per-runner API — so a pinned `utmbId`
+only helps if the runner appears in the rows fetched, and somebody with a
+common name and a modest index never does. Their page does the job instead:
+`utmb.world/runner/<uri>` is a Next.js app whose `__NEXT_DATA__` holds the name,
+nationality, age group and all five category indexes at once. It is addressed
+by the full slug (`7388490.yu.chen`) and 404s on the id alone, which is why
+`utmbUri` is stored beside `utmbId`. Search still runs first — it is a fraction
+of the bytes and finds most people — and the page is the fallback.
+
 **ITRA** — `itra.run/api/runner/find` is a POST that needs a browser
 `User-Agent` (it 403s otherwise), `Origin`/`Referer` headers, and an
 `X-CSRF-TOKEN` scraped from the hidden `__RequestVerificationToken` input on the
@@ -126,9 +135,9 @@ Both are editable afterwards. Expanding a runner's card and choosing **Edit
 nickname and links** shows the same three fields, prefilled with what they are
 pinned to now: paste a link to re-pin a source, clear one to unpin it. That is
 how a runner added while ITRA was unreachable gets their ITRA half, and how a
-name-matched source that landed on a namesake gets corrected. Re-pinning UTMB
-also updates the stored name, because UTMB has no per-runner endpoint and finds
-a pinned runner by searching that name.
+name-matched source that landed on a namesake gets corrected. Re-pinning UTMB stores its slug and the name that
+goes with it, which is what lets the app reach a runner UTMB's own search ranks
+out of sight.
 
 ## Caching
 

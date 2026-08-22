@@ -12,7 +12,13 @@ needed.
   "name": "CRIT",
   "description": "Runners the CRIT crew follows",
   "runners": [
-    { "name": "Kilian Jornet", "alias": "Kilian", "itraRunnerId": 2704, "utmbId": 2704 }
+    {
+      "name": "Kilian Jornet",
+      "alias": "Kilian",
+      "itraRunnerId": 2704,
+      "utmbId": 2704,
+      "utmbUri": "2704.kilian.jornetburgada"
+    }
   ]
 }
 ```
@@ -25,6 +31,7 @@ needed.
 | `runners[].alias` | no | Nickname shown instead of the name. Display only. |
 | `runners[].itraRunnerId` | no | Pins the ITRA profile. |
 | `runners[].utmbId` | no | Pins the UTMB profile. |
+| `runners[].utmbUri` | no | UTMB's profile slug. Reaches runners its search ranks out of sight. |
 
 The filename must be lowercase letters, digits, and hyphens — that string is
 the URL.
@@ -33,9 +40,13 @@ the URL.
 
 A refresh searches the name again, and without an ID two runners sharing a name
 are indistinguishable — the app may show the wrong person's index. With an ID
-the match is exact, and an ITRA ID goes further: it resolves off the runner's
-own profile page, so somebody search would bury hundreds of rows down is still
-found.
+the match is exact.
+
+The IDs go further when the profile can be addressed directly, which is what
+reaches somebody search buries. An ITRA ID is enough on its own. UTMB needs the
+whole `utmbUri` slug, because its page 404s on the ID alone — and without it a
+runner ranked below the rows we fetch has no result at all, however well
+pinned.
 
 The easiest way to get the IDs is to add the runner in the app — either search
 for them or paste their profile links — and export the list from the list

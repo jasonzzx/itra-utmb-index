@@ -120,6 +120,7 @@ export default function SearchPage() {
       name: prettyName(c.name),
       itraRunnerId: c.itra?.runnerId,
       utmbId: c.utmb?.id,
+      utmbUri: c.utmb?.uri,
     });
   }
 

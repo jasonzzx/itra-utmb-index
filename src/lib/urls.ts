@@ -10,6 +10,12 @@
 export interface ParsedProfileUrl {
   id: number;
   /**
+   * UTMB only: the path segment its profile page is addressed by,
+   * `7388490.yu.chen`. UTMB 404s on the id alone, so this is what makes an
+   * exact lookup possible and is worth storing alongside the id.
+   */
+  uri?: string;
+  /**
    * A readable name recovered from the URL, when it has one.
    *
    * Only a hint: profile slugs strip the spaces out of a surname, so ITRA's
@@ -21,6 +27,7 @@ export interface ParsedProfileUrl {
 }
 
 const ITRA_ORIGIN = 'https://itra.run';
+const UTMB_ORIGIN = 'https://utmb.world';
 const ITRA_HOST = /(^|\.)itra\.run$/;
 const UTMB_HOST = /(^|\.)utmb\.world$/;
 
@@ -32,6 +39,11 @@ const UTMB_HOST = /(^|\.)utmb\.world$/;
  */
 export function itraProfileUrl(runnerId: number): string {
   return `${ITRA_ORIGIN}/RunnerSpace/-/${runnerId}`;
+}
+
+/** A UTMB runner's page. Only the full slug works — the id alone is a 404. */
+export function utmbProfileUrl(uri: string): string {
+  return `${UTMB_ORIGIN}/runner/${uri}`;
 }
 
 /** Slug words are lowercase; a card reading "Kilian Jornetburgada" beats "kilian jornetburgada". */
@@ -140,7 +152,7 @@ export function parseUtmbUrl(input: string): ParsedProfileUrl | null {
     const dotted = part.split('.');
     const leading = bareId(dotted[0] ?? '');
     if (leading !== null && dotted.length >= 2) {
-      return { id: leading, nameHint: titleCase(dotted.slice(1)) };
+      return { id: leading, uri: part, nameHint: titleCase(dotted.slice(1)) };
     }
   }
   return null;

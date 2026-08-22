@@ -4,7 +4,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import { searchItra, fetchItraIndex, fetchItraProfile } from '@/lib/itra';
-import { searchUtmb, fetchUtmbIndex, fetchUtmbAllCategories } from '@/lib/utmb';
+import {
+  searchUtmb,
+  fetchUtmbIndex,
+  fetchUtmbAllCategories,
+  fetchUtmbProfile,
+} from '@/lib/utmb';
 
 const live = process.env.LIVE === '1' ? describe : describe.skip;
 
@@ -55,6 +60,28 @@ live('live upstream', () => {
     console.log('UTMB categories:', cats);
     expect(Object.keys(cats).length).toBeGreaterThan(2);
   }, 45_000);
+
+  it('reaches a runner UTMB search ranks out of sight', async () => {
+    // "Yu Chen" returns hundreds of people ranked by index, and this one sits
+    // at 382 — far past any window worth fetching. Only the slug finds him.
+    const searched = await searchUtmb('Yu Chen', 'general', 25);
+    expect(searched.some((r) => r.id === 7388490)).toBe(false);
+
+    const r = await fetchUtmbIndex('Yu Chen', 7388490, 'general', '7388490.yu.chen');
+    expect(r?.id).toBe(7388490);
+    expect(r!.ip).toBeGreaterThan(0);
+    console.log('UTMB by slug:', r!.name, r!.ip, r!.nationality, r!.ageGroup);
+  }, 30_000);
+
+  it('takes every UTMB category from one page load', async () => {
+    const cats = await fetchUtmbAllCategories('Yu Chen', 7388490, '7388490.yu.chen');
+    expect(Object.keys(cats).length).toBeGreaterThan(0);
+    console.log('UTMB categories by slug:', cats);
+  }, 30_000);
+
+  it('treats an unknown UTMB slug as an answer', async () => {
+    expect(await fetchUtmbProfile('999999999.no.body')).toBeNull();
+  }, 30_000);
 
   it('returns null for a pinned id that does not match', async () => {
     expect(await fetchUtmbIndex('jornet', 999999999)).toBeNull();
