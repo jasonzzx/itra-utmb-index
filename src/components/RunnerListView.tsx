@@ -12,6 +12,7 @@ export function RunnerListView({
   onRemove,
   onEdit,
   emptyMessage,
+  emptyAction,
   exportMeta,
 }: {
   runners: RunnerRef[];
@@ -19,6 +20,11 @@ export function RunnerListView({
   /** Change one runner's nickname or pins. Omit to make the list read-only. */
   onEdit?: (id: string, patch: Partial<RunnerRef>) => void;
   emptyMessage?: string;
+  /**
+   * What to offer instead of "find a runner" when the list is empty for a
+   * reason the visitor can undo.
+   */
+  emptyAction?: { label: string; onClick: () => void };
   /** Omit to hide the export button. */
   exportMeta?: ExportMetaDefaults;
 }) {
@@ -29,9 +35,15 @@ export function RunnerListView({
     return (
       <div className="empty">
         <p>{emptyMessage ?? 'No runners yet.'}</p>
-        <Link className="cta" href="/search">
-          Find a runner
-        </Link>
+        {emptyAction ? (
+          <button className="cta" onClick={emptyAction.onClick}>
+            {emptyAction.label}
+          </button>
+        ) : (
+          <Link className="cta" href="/search">
+            Find a runner
+          </Link>
+        )}
       </div>
     );
   }

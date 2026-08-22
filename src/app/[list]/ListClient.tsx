@@ -49,7 +49,12 @@ export function ListClient({ slug, seed }: { slug: string; seed: RunnerList }) {
 
       {forked && (
         <div className="banner">
-          <span>Your own copy of this list.</span>
+          {/* Say what the published list holds, so a copy that has drifted
+              from it — or been emptied — is visible rather than puzzling. */}
+          <span>
+            Your own copy of this list. The published one has{' '}
+            {seed.runners.length}.
+          </span>
           <button onClick={reset}>Reset to original</button>
         </div>
       )}
@@ -59,7 +64,21 @@ export function ListClient({ slug, seed }: { slug: string; seed: RunnerList }) {
           runners={runners}
           onRemove={remove}
           onEdit={edit}
-          emptyMessage="This list is empty."
+          /**
+           * An emptied copy is the one empty list that isn't what it looks
+           * like: the published roster is still there, and "no runners" with
+           * a "find a runner" button gives no hint of that.
+           */
+          emptyMessage={
+            forked && seed.runners.length > 0
+              ? `Your copy of this list is empty. The published list has ${seed.runners.length} runners.`
+              : 'This list is empty.'
+          }
+          emptyAction={
+            forked && seed.runners.length > 0
+              ? { label: 'Show the published list', onClick: reset }
+              : undefined
+          }
           exportMeta={{
             defaultName: seed.name,
             defaultDescription: seed.description,
