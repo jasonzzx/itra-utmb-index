@@ -1,12 +1,64 @@
 {
   "name": "CRIT",
-  "description": "Sample roster — replace with your own crew",
   "runners": [
-    { "name": "Jim Walmsley", "itraRunnerId": 485740, "utmbId": 485740 },
-    { "name": "Kilian Jornet", "itraRunnerId": 2704, "utmbId": 2704 },
-    { "name": "Mathieu Blanchard", "itraRunnerId": 1064397, "utmbId": 1064397 },
-    { "name": "Katie Schide", "itraRunnerId": 671487, "utmbId": 671487 },
-    { "name": "Courtney Dauwalter", "itraRunnerId": 30959, "utmbId": 30959 },
-    { "name": "Ruth Croft", "itraRunnerId": 362813, "utmbId": 362813 }
+    {
+      "name": "Zhexiong Zhong",
+      "alias": "Jason Zhong",
+      "itraRunnerId": 6453937,
+      "itraUri": "zhong.zhexiong.6453937",
+      "utmbId": 7388636,
+      "utmbUri": "7388636.zhexiong.zhong"
+    },
+    {
+      "name": "Ming Zhao",
+      "alias": "Morgan Zhao",
+      "itraRunnerId": 4233160,
+      "itraUri": "zhao.ming.4233160",
+      "utmbId": 4207306,
+      "utmbUri": "4207306.ming.zhao"
+    },
+    {
+      "name": "Tony Hongliang Qiu",
+      "alias": "Tony Qiu",
+      "itraRunnerId": 6504214,
+      "itraUri": "qiu.tonyhongliang.6504214",
+      "utmbId": 7388724,
+      "utmbUri": "7388724.tonyhongliang.qiu"
+    },
+    {
+      "name": "Jun Xian",
+      "itraRunnerId": 863621,
+      "itraUri": "xian.jun.863621",
+      "utmbId": 863621,
+      "utmbUri": "863621.jun.xian"
+    },
+    {
+      "name": "Xiu Yi Guan",
+      "utmbId": 7770639,
+      "utmbUri": "7770639.xiuyi.guan"
+    },
+    {
+      "name": "Gaozhi Chen",
+      "alias": "高佬",
+      "itraRunnerId": 7796419,
+      "itraUri": "chen.gaozhi.7796419",
+      "utmbId": 7770685,
+      "utmbUri": "7770685.gaozhi.chen"
+    },
+    {
+      "name": "Lei Yang",
+      "itraRunnerId": 667759,
+      "itraUri": "yang.lei.667759",
+      "utmbId": 667759,
+      "utmbUri": "667759.lei.yang"
+    },
+    {
+      "name": "Yu Chen",
+      "alias": "芋头",
+      "itraRunnerId": 7479205,
+      "itraUri": "chen.yu.7479205",
+      "utmbId": 7388490,
+      "utmbUri": "7388490.yu.chen"
+    }
   ]
 }
