@@ -418,6 +418,31 @@ input {
   margin-bottom: 10px;
 }
 
+/* Rank the list by either index. Sits left so Export and refresh keep their
+   place on the right. */
+.sort {
+  display: flex;
+  gap: 2px;
+  margin-right: auto;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.sort button {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 620;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.sort button[data-active='true'] {
+  background: var(--surface);
+  color: var(--text);
+}
+
 .text-btn {
   padding: 8px 14px;
   border-radius: 10px;
