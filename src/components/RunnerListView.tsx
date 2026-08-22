@@ -15,9 +15,8 @@ import {
 import type { RunnerRef } from '@/lib/types';
 
 const SORTS: Array<{ key: SortKey; label: string; description: string }> = [
-  { key: 'list', label: 'List', description: 'Keep the list order' },
-  { key: 'itra', label: 'ITRA', description: 'Sort by ITRA index' },
   { key: 'utmb', label: 'UTMB', description: 'Sort by UTMB index' },
+  { key: 'itra', label: 'ITRA', description: 'Sort by ITRA index' },
 ];
 
 export function RunnerListView({
@@ -83,7 +82,7 @@ export function RunnerListView({
                 onClick={() => setSort((s) => nextSort(s, key))}
               >
                 {label}
-                {active && key !== 'list' && (
+                {active && (
                   <span aria-hidden>{sort.dir === 'desc' ? ' ↓' : ' ↑'}</span>
                 )}
               </button>

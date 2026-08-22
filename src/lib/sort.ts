@@ -1,13 +1,11 @@
 import type { RunnerIndexes, RunnerRef } from './types';
 
 /**
- * Ordering a list by what it is for: the numbers.
- *
- * `list` is the order the runners were added, or the order the committed file
- * puts them in — the one arrangement the owner chose deliberately, so it stays
- * the default.
+ * Ordering a list by what it is for: the numbers. A list is always ranked by
+ * one index or the other — the order the runners happen to sit in the file is
+ * not one of the choices.
  */
-export type SortKey = 'list' | 'itra' | 'utmb';
+export type SortKey = 'utmb' | 'itra';
 export type SortDir = 'desc' | 'asc';
 
 export interface SortState {
@@ -15,7 +13,7 @@ export interface SortState {
   dir: SortDir;
 }
 
-export const DEFAULT_SORT: SortState = { key: 'list', dir: 'desc' };
+export const DEFAULT_SORT: SortState = { key: 'utmb', dir: 'desc' };
 
 /**
  * The number to sort on, or null for "no index".
@@ -28,7 +26,7 @@ export const DEFAULT_SORT: SortState = { key: 'list', dir: 'desc' };
  */
 export function indexValue(
   entry: RunnerIndexes | undefined,
-  key: 'itra' | 'utmb',
+  key: SortKey,
 ): number | null {
   if (!entry) return null;
   if (key === 'itra') {
@@ -50,8 +48,6 @@ export function sortRunners(
   indexes: Record<string, RunnerIndexes>,
   sort: SortState,
 ): RunnerRef[] {
-  if (sort.key === 'list') return runners;
-
   const key = sort.key;
   return runners
     .map((runner, position) => ({
@@ -68,15 +64,14 @@ export function sortRunners(
         return sort.dir === 'desc' ? b.value - a.value : a.value - b.value;
       }
       // Ties keep the order the list already had, so equal indexes don't
-      // shuffle between renders.
+      // shuffle between renders, and the file's order still decides something.
       return a.position - b.position;
     })
     .map((entry) => entry.runner);
 }
 
-/** Tapping the active key flips it; tapping another switches, highest first. */
+/** Tapping the active key flips it; tapping the other switches, highest first. */
 export function nextSort(current: SortState, key: SortKey): SortState {
-  if (key === 'list') return { key, dir: 'desc' };
   if (current.key !== key) return { key, dir: 'desc' };
   return { key, dir: current.dir === 'desc' ? 'asc' : 'desc' };
 }

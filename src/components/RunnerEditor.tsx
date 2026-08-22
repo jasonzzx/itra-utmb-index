@@ -122,23 +122,6 @@ export function RunnerEditor({
       </label>
 
       <label className="field">
-        <span>ITRA profile link</span>
-        <input
-          value={itraValue}
-          onChange={(e) => editItra(e.target.value)}
-          placeholder={
-            runner.itraRunnerId != null
-              ? `Pinned to ITRA ${runner.itraRunnerId}`
-              : 'https://itra.run/RunnerSpace/…'
-          }
-          autoComplete="off"
-          inputMode="url"
-          spellCheck={false}
-        />
-      </label>
-      {itraParsed.error && <div className="err">{itraParsed.error}</div>}
-
-      <label className="field">
         <span>UTMB profile link</span>
         <input
           value={utmbValue}
@@ -154,6 +137,23 @@ export function RunnerEditor({
         />
       </label>
       {utmbParsed.error && <div className="err">{utmbParsed.error}</div>}
+
+      <label className="field">
+        <span>ITRA profile link</span>
+        <input
+          value={itraValue}
+          onChange={(e) => editItra(e.target.value)}
+          placeholder={
+            runner.itraRunnerId != null
+              ? `Pinned to ITRA ${runner.itraRunnerId}`
+              : 'https://itra.run/RunnerSpace/…'
+          }
+          autoComplete="off"
+          inputMode="url"
+          spellCheck={false}
+        />
+      </label>
+      {itraParsed.error && <div className="err">{itraParsed.error}</div>}
 
       {stranded && (
         <div className="warn">

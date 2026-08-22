@@ -113,8 +113,8 @@ export function AddByLink({
   // A source we never pinned answered anyway, off the name alone — the very
   // thing that puts a namesake on the card.
   const guessed = [
-    itraRunnerId == null && itraData ? 'ITRA' : null,
     utmbId == null && utmbData ? 'UTMB' : null,
+    itraRunnerId == null && itraData ? 'ITRA' : null,
   ].filter(Boolean) as string[];
 
   const duplicate = saved.some(
@@ -143,7 +143,7 @@ export function AddByLink({
   return (
     <div className="sheet">
       <p className="sheet-hint">
-        Open a runner on <code>itra.run</code> or <code>utmb.world</code> and
+        Open a runner on <code>utmb.world</code> or <code>itra.run</code> and
         paste their profile links. Either one on its own is enough — links pin
         the exact runner, which searching by name can&apos;t always do.
       </p>
@@ -159,19 +159,6 @@ export function AddByLink({
       </label>
 
       <label className="field">
-        <span>ITRA profile link</span>
-        <input
-          value={itraUrl}
-          onChange={(e) => setItraUrl(e.target.value)}
-          placeholder="https://itra.run/RunnerSpace/…"
-          autoComplete="off"
-          inputMode="url"
-          spellCheck={false}
-        />
-      </label>
-      {itra.error && <div className="err">{itra.error}</div>}
-
-      <label className="field">
         <span>UTMB profile link</span>
         <input
           value={utmbUrl}
@@ -184,6 +171,19 @@ export function AddByLink({
       </label>
       {utmb.error && <div className="err">{utmb.error}</div>}
 
+      <label className="field">
+        <span>ITRA profile link</span>
+        <input
+          value={itraUrl}
+          onChange={(e) => setItraUrl(e.target.value)}
+          placeholder="https://itra.run/RunnerSpace/…"
+          autoComplete="off"
+          inputMode="url"
+          spellCheck={false}
+        />
+      </label>
+      {itra.error && <div className="err">{itra.error}</div>}
+
       {pinned && (
         <div className="preview">
           <div className="who">
@@ -194,11 +194,11 @@ export function AddByLink({
               {[
                 // A pi or ip of 0 means no index in that category, not a zero
                 // score, so it reads as "—".
-                itraRunnerId != null || itraData
-                  ? `ITRA ${itraData ? itraData.pi || '—' : looking ? '…' : '—'}`
-                  : null,
                 utmbId != null || utmbData
                   ? `UTMB ${utmbData ? utmbData.ip || '—' : looking ? '…' : '—'}`
+                  : null,
+                itraRunnerId != null || itraData
+                  ? `ITRA ${itraData ? itraData.pi || '—' : looking ? '…' : '—'}`
                   : null,
               ]
                 .filter(Boolean)
@@ -220,8 +220,8 @@ export function AddByLink({
 
       {/* One source being unreachable is survivable: the id is still pinned,
           so the figure fills in by itself once it can be fetched. */}
-      {itraError && <div className="err">ITRA: {itraError}</div>}
       {utmbError && <div className="err">UTMB: {utmbError}</div>}
+      {itraError && <div className="err">ITRA: {itraError}</div>}
       {pinned && !looking && (itraError || utmbError) && (
         <div className="sheet-hint">
           You can still add them — the link pins the runner, and the figure

@@ -150,21 +150,20 @@ out of sight.
 
 ## Sorting a list
 
-Every list has a **List / ITRA / UTMB** control. `List` is the order the
-runners were added or the order the committed file puts them in — the one
-arrangement somebody chose deliberately, so it's the default. Tapping `ITRA` or
-`UTMB` ranks by that index, highest first; tapping it again flips the
-direction.
+Every list has a **UTMB / ITRA** control and is always ranked by one of them —
+UTMB descending by default. Tapping the other index switches to it, highest
+first; tapping the active one flips the direction.
 
-Runners with no index in the source you're sorting by sink to the bottom
-either way, keeping their list order down there. Ascending is for reading the
+Runners with no index in the source you're sorting by sink to the bottom either
+way, keeping the file's order among themselves. Ascending is for reading the
 field from the bottom up, not for promoting the people the app has nothing to
 say about — and "no index" covers a source that failed as well as one that has
 no number, since both render as `—`.
 
 The sort is display only: `useRunnerIndexes` and the export both keep the
 original array, so reordering the cards never triggers a refetch or changes
-what a committed list would contain.
+what a committed list would contain. The order runners sit in a committed file
+still decides ties.
 
 ## Caching
 

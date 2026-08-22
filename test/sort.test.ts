@@ -47,10 +47,9 @@ const order = (sort: SortState) =>
   sortRunners(runners, indexes, sort).map((r) => r.id);
 
 describe('sortRunners', () => {
-  it('leaves the list in the order its owner chose', () => {
-    expect(order(DEFAULT_SORT)).toEqual(['a', 'b', 'c', 'd']);
-    // The same array, not a copy, so nothing downstream sees a change.
-    expect(sortRunners(runners, indexes, DEFAULT_SORT)).toBe(runners);
+  it('ranks by UTMB index, highest first, with no asking', () => {
+    expect(DEFAULT_SORT).toEqual({ key: 'utmb', dir: 'desc' });
+    expect(order(DEFAULT_SORT)).toEqual(['b', 'a', 'd', 'c']);
   });
 
   it('ranks by ITRA index, highest first', () => {
@@ -135,7 +134,7 @@ describe('nextSort', () => {
     });
   });
 
-  it('has no direction to offer for the list order', () => {
-    expect(nextSort({ key: 'itra', dir: 'asc' }, 'list')).toEqual(DEFAULT_SORT);
+  it('switches back to UTMB highest first', () => {
+    expect(nextSort({ key: 'itra', dir: 'asc' }, 'utmb')).toEqual(DEFAULT_SORT);
   });
 });

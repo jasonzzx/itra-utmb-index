@@ -166,8 +166,8 @@ export default function SearchPage() {
           {loading && <span className="spin" aria-hidden>↻</span>}
         </div>
 
-        {errors.itra && <div className="err">ITRA search unavailable: {errors.itra}</div>}
         {errors.utmb && <div className="err">UTMB search unavailable: {errors.utmb}</div>}
+        {errors.itra && <div className="err">ITRA search unavailable: {errors.itra}</div>}
 
         {all.length > 0 && (
           <SearchFilters
@@ -208,8 +208,8 @@ export default function SearchPage() {
                     {[
                       // An index of 0 means the runner has no index, not a zero
                       // score, so it reads as "no index" rather than "0".
-                      c.itra ? (c.itra.pi ? `ITRA ${c.itra.pi}` : 'ITRA —') : 'no ITRA match',
                       c.utmb ? (c.utmb.ip ? `UTMB ${c.utmb.ip}` : 'UTMB —') : 'no UTMB match',
+                      c.itra ? (c.itra.pi ? `ITRA ${c.itra.pi}` : 'ITRA —') : 'no ITRA match',
                       c.itra?.nationality || c.utmb?.nationality,
                     ]
                       .filter(Boolean)

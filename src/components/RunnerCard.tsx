@@ -120,8 +120,8 @@ export function RunnerCard({
           <div className="meta">{meta || (loading ? 'Loading…' : '—')}</div>
         </div>
         <div className="badges">
-          <Badge label="ITRA" value={itra?.pi ?? null} kind="itra" loading={loading && !itra} />
           <Badge label="UTMB" value={utmb?.ip ?? null} kind="utmb" loading={loading && !utmb} />
+          <Badge label="ITRA" value={itra?.pi ?? null} kind="itra" loading={loading && !itra} />
         </div>
       </button>
 
@@ -153,28 +153,28 @@ export function RunnerCard({
 
           {(itraErr || utmbErr) && (
             <div>
-              {itraErr && <div className="err">ITRA: {itraErr}</div>}
               {utmbErr && <div className="err">UTMB: {utmbErr}</div>}
+              {itraErr && <div className="err">ITRA: {itraErr}</div>}
               {/* One source failing is expected and survivable — say which half
                   is still real so a blocked ITRA doesn't read as a broken app. */}
-              {itraErr && !utmbErr && utmb && (
-                <div className="stamp">The UTMB figure above is still live.</div>
-              )}
               {utmbErr && !itraErr && itra && (
                 <div className="stamp">The ITRA figure above is still live.</div>
+              )}
+              {itraErr && !utmbErr && utmb && (
+                <div className="stamp">The UTMB figure above is still live.</div>
               )}
             </div>
           )}
 
           <div className="links">
-            {itra && (
-              <a className="link-chip" href={itra.profileUrl} target="_blank" rel="noreferrer">
-                ITRA profile ↗
-              </a>
-            )}
             {utmb && (
               <a className="link-chip" href={utmb.profileUrl} target="_blank" rel="noreferrer">
                 UTMB profile ↗
+              </a>
+            )}
+            {itra && (
+              <a className="link-chip" href={itra.profileUrl} target="_blank" rel="noreferrer">
+                ITRA profile ↗
               </a>
             )}
           </div>
