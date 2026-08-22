@@ -21,7 +21,8 @@ export function useRunnerIndexes(runners: RunnerRef[]) {
   const key = runners
     .map(
       (r) =>
-        `${r.id}:${r.name}:${r.itraRunnerId ?? ''}:${r.utmbId ?? ''}:${r.utmbUri ?? ''}`,
+        `${r.id}:${r.name}:${r.itraRunnerId ?? ''}:${r.itraUri ?? ''}` +
+        `:${r.utmbId ?? ''}:${r.utmbUri ?? ''}`,
     )
     .join('|');
 

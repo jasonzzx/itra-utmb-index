@@ -68,9 +68,11 @@ Three consequences worth knowing:
 - **ITRA's per-runner *API* endpoints require auth** and return 401, but the
   runner's own page does not: `itra.run/RunnerSpace/-/<id>` redirects to their
   profile, which embeds the index in a `var Model = {…}` blob. That is the one
-  exact ITRA lookup available — no name, no anti-forgery handshake, no chance of
-  a namesake. It carries no race history, so a saved runner is still refreshed
-  by search first, and the page is the fallback for anyone search can't reach.
+  exact ITRA lookup available — no name, no chance of a namesake. It carries no
+  race history, so a saved runner is still refreshed by search first, and the
+  page is the fallback for anyone search can't reach. It reuses the session the
+  search handshake already holds, and goes straight to the canonical slug when
+  `itraUri` is stored, so it costs one request rather than two.
 - **Saved runners store the resolved `itraRunnerId` and `utmbId`**, and every
   refresh matches strictly on ID — two runners with the same name can never be
   confused.
@@ -114,6 +116,13 @@ To keep from provoking them, ITRA requests are capped at two in flight, all
 concurrent callers share a single CSRF handshake, a refusal starts a 60s
 cooldown during which no request is made, and a window stops after the first
 page when the results have already ended.
+
+The cooldown is kept **per path**, because the refusal often isn't site-wide. A
+network can be served `/api/runner/find` perfectly well and still be challenged
+on `/RunnerSpace/`, which shows up as "most runners work, this one doesn't" —
+the ones that fail are exactly the ones search can't reach, since they're the
+only ones that fetch a page. One refused page fetch shouldn't blank the index
+of every runner search can still answer.
 
 ## Adding a runner
 

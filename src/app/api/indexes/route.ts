@@ -27,6 +27,7 @@ function parseRunners(input: unknown): RunnerRef[] | null {
       id: r.id,
       name: r.name,
       itraRunnerId: typeof r.itraRunnerId === 'number' ? r.itraRunnerId : undefined,
+      itraUri: typeof r.itraUri === 'string' ? r.itraUri : undefined,
       utmbId: typeof r.utmbId === 'number' ? r.utmbId : undefined,
       utmbUri: typeof r.utmbUri === 'string' ? r.utmbUri : undefined,
     });

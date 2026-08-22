@@ -36,8 +36,10 @@ export function AddByLink({
   const utmb = useMemo(() => readUtmbUrl(utmbUrl), [utmbUrl]);
 
   const itraRunnerId = itra.value?.id;
+  // ITRA redirects the id to its slug and UTMB 404s without one, so both are
+  // worth keeping: one saves a request, the other is the only way in.
+  const itraUri = itra.value?.uri;
   const utmbId = utmb.value?.id;
-  // UTMB 404s on the id alone, so the slug is what makes the pin exact.
   const utmbUri = utmb.value?.uri;
   const pinned = itraRunnerId != null || utmbId != null;
 
@@ -71,7 +73,14 @@ export function AddByLink({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             runners: [
-              { id: PREVIEW_ID, name: nameHint, itraRunnerId, utmbId, utmbUri },
+              {
+                id: PREVIEW_ID,
+                name: nameHint,
+                itraRunnerId,
+                itraUri,
+                utmbId,
+                utmbUri,
+              },
             ],
           }),
           signal: controller.signal,
@@ -90,7 +99,7 @@ export function AddByLink({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [pinned, nameHint, itraRunnerId, utmbId, utmbUri]);
+  }, [pinned, nameHint, itraRunnerId, itraUri, utmbId, utmbUri]);
 
   const itraData = preview?.itra.ok ? preview.itra.data : null;
   const utmbData = preview?.utmb.ok ? preview.utmb.data : null;
@@ -120,6 +129,7 @@ export function AddByLink({
       name: resolvedName,
       ...(alias.trim() ? { alias: alias.trim() } : {}),
       ...(itraRunnerId != null ? { itraRunnerId } : {}),
+      ...(itraUri ? { itraUri } : {}),
       ...(utmbId != null ? { utmbId } : {}),
       ...(utmbUri ? { utmbUri } : {}),
     });

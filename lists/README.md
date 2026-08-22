@@ -30,6 +30,7 @@ needed.
 | `runners[].name` | yes | The name the sources know them by; also the search term. |
 | `runners[].alias` | no | Nickname shown instead of the name. Display only. |
 | `runners[].itraRunnerId` | no | Pins the ITRA profile. |
+| `runners[].itraUri` | no | ITRA's profile slug. Saves a redirect; the ID works without it. |
 | `runners[].utmbId` | no | Pins the UTMB profile. |
 | `runners[].utmbUri` | no | UTMB's profile slug. Reaches runners its search ranks out of sight. |
 

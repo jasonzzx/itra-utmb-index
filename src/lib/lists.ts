@@ -39,6 +39,7 @@ export function parseList(input: unknown): RunnerList | null {
     if (typeof r.name !== 'string' || !r.name.trim()) return null;
     if (r.alias !== undefined && typeof r.alias !== 'string') return null;
     if (r.itraRunnerId !== undefined && typeof r.itraRunnerId !== 'number') return null;
+    if (r.itraUri !== undefined && typeof r.itraUri !== 'string') return null;
     if (r.utmbId !== undefined && typeof r.utmbId !== 'number') return null;
     if (r.utmbUri !== undefined && typeof r.utmbUri !== 'string') return null;
     runners.push({
@@ -47,6 +48,7 @@ export function parseList(input: unknown): RunnerList | null {
       // blank name.
       alias: (r.alias as string | undefined)?.trim() || undefined,
       itraRunnerId: r.itraRunnerId as number | undefined,
+      itraUri: (r.itraUri as string | undefined)?.trim() || undefined,
       utmbId: r.utmbId as number | undefined,
       utmbUri: (r.utmbUri as string | undefined)?.trim() || undefined,
     });

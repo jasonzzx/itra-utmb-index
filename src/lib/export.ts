@@ -31,6 +31,7 @@ export function toRunnerList(
       name: r.name.trim(),
       ...(r.alias?.trim() ? { alias: r.alias.trim() } : {}),
       ...(r.itraRunnerId != null ? { itraRunnerId: r.itraRunnerId } : {}),
+      ...(r.itraUri?.trim() ? { itraUri: r.itraUri.trim() } : {}),
       ...(r.utmbId != null ? { utmbId: r.utmbId } : {}),
       ...(r.utmbUri?.trim() ? { utmbUri: r.utmbUri.trim() } : {}),
     })),

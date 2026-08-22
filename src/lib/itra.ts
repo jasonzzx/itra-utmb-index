@@ -57,13 +57,23 @@ export class ItraBlockedError extends ItraAccessError {
 }
 
 /**
- * Cooldown after a block. Retrying into a wall only deepens the block and
+ * Cooldown after a refusal. Retrying into a wall only deepens the block and
  * costs the user latency for a result that cannot arrive, so once ITRA says no
  * we stop asking for a while.
+ *
+ * Kept per path, because ITRA's bot protection does not refuse the whole site
+ * at once. A network can be served the search API perfectly well and still be
+ * challenged on the runner pages, and a single refused page fetch silencing
+ * every runner's index for a minute — including the ones search answers — is a
+ * far worse outage than the one that actually happened.
  */
+type ItraPath = 'search' | 'profile';
+
 const BLOCK_COOLDOWN_MS = 60_000;
-let blockedUntil = 0;
-let lastAccessMessage: string | null = null;
+const cooldowns: Record<ItraPath, { until: number; message: string | null }> = {
+  search: { until: 0, message: null },
+  profile: { until: 0, message: null },
+};
 
 /**
  * Why ITRA is currently refusing us, if it is.
@@ -74,31 +84,39 @@ let lastAccessMessage: string | null = null;
  * actually happened instead of that placeholder.
  */
 export function itraAccessNotice(): string | null {
-  return Date.now() < blockedUntil ? lastAccessMessage : null;
+  const now = Date.now();
+  // Whichever refusal is freshest — that is the one the caller just hit.
+  const live = Object.values(cooldowns)
+    .filter((c) => now < c.until)
+    .sort((a, b) => b.until - a.until);
+  return live[0]?.message ?? null;
 }
 
-function assertNotBlocked(res: Response): void {
+function assertNotBlocked(res: Response, path: ItraPath): void {
   // Order matters: a challenge can arrive with a non-202 status, so the header
   // is checked before the status code.
   if (res.headers.get('x-amzn-waf-action') === 'challenge' || res.status === 202) {
-    throw recordAccessError(new ItraChallengedError());
+    throw recordAccessError(new ItraChallengedError(), path);
   }
   if (res.status === 403) {
-    throw recordAccessError(new ItraBlockedError());
+    throw recordAccessError(new ItraBlockedError(), path);
   }
 }
 
-function recordAccessError<E extends ItraAccessError>(err: E): E {
-  blockedUntil = Date.now() + BLOCK_COOLDOWN_MS;
-  lastAccessMessage = err.message;
+function recordAccessError<E extends ItraAccessError>(err: E, path: ItraPath): E {
+  cooldowns[path] = {
+    until: Date.now() + BLOCK_COOLDOWN_MS,
+    message: err.message,
+  };
   return err;
 }
 
-/** Fail fast while a block is in force, without making a request. */
-function assertNotCoolingDown(): void {
-  if (Date.now() < blockedUntil) {
-    throw lastAccessMessage
-      ? Object.assign(new ItraBlockedError(), { message: lastAccessMessage })
+/** Fail fast while a refusal on this path is in force, without a request. */
+function assertNotCoolingDown(path: ItraPath): void {
+  const { until, message } = cooldowns[path];
+  if (Date.now() < until) {
+    throw message
+      ? Object.assign(new ItraBlockedError(), { message })
       : new ItraBlockedError();
   }
 }
@@ -214,7 +232,7 @@ export async function decryptResponse(
 }
 
 async function acquireSession(): Promise<ItraSession> {
-  assertNotCoolingDown();
+  assertNotCoolingDown('search');
   const res = await withSlot(() =>
     outboundFetch(FIND_PAGE, {
       headers: {
@@ -225,7 +243,7 @@ async function acquireSession(): Promise<ItraSession> {
       cache: 'no-store',
     }),
   );
-  assertNotBlocked(res);
+  assertNotBlocked(res, 'search');
   if (!res.ok) {
     throw new Error(`ITRA search page returned ${res.status}`);
   }
@@ -338,7 +356,7 @@ export async function searchItra(
   start = 0,
 ): Promise<ItraIndex[]> {
   if (name.trim().length < 2) return [];
-  assertNotCoolingDown();
+  assertNotCoolingDown('search');
 
   // ITRA returns one fewer row than `count` asks for — measured at
   // count=3→2, 6→5, 26→25, 50→49 — so request one extra and trim. Above
@@ -353,7 +371,7 @@ export async function searchItra(
     session = await getSession(true);
     res = await postSearch(name, requested, start, session);
   }
-  assertNotBlocked(res);
+  assertNotBlocked(res, 'search');
   if (!res.ok) {
     throw new Error(`ITRA search failed with ${res.status}`);
   }
@@ -473,7 +491,7 @@ interface ItraPageModel {
   performanceIndicatorInfos?: ItraPagePerformance[] | null;
 }
 
-function pageToIndex(model: ItraPageModel): ItraIndex | null {
+function pageToIndex(model: ItraPageModel, uri?: string): ItraIndex | null {
   if (typeof model.runnerId !== 'number') return null;
   const general = (model.performanceIndicatorInfos ?? []).find(
     (p) => p?.categoryId === 0,
@@ -494,7 +512,7 @@ function pageToIndex(model: ItraPageModel): ItraIndex | null {
     // Results load over a later request the page makes for itself, so this
     // route simply has none to offer.
     recentRaces: [],
-    profileUrl: itraProfileUrl(model.runnerId),
+    profileUrl: itraProfileUrl(model.runnerId, uri),
     photoUrl:
       model.profilePicture && !isDefaultPic
         ? `${ORIGIN}${model.profilePicture}`
@@ -511,19 +529,41 @@ function pageToIndex(model: ItraPageModel): ItraIndex | null {
  */
 export async function fetchItraProfile(
   runnerId: number,
+  uri?: string,
 ): Promise<ItraIndex | null> {
-  assertNotCoolingDown();
+  assertNotCoolingDown('profile');
+
+  /**
+   * Carry the session we already hold.
+   *
+   * Without it this went out as a bare cookie-less GET for a megabyte of HTML,
+   * while every other request in the same lookup carried ITRA's session and
+   * anti-forgery cookies — which is exactly the shape bot protection scores
+   * against, and left this one request refused on networks that serve the rest
+   * of the site happily. It is the same client and the same session, so it
+   * should look like it.
+   *
+   * Only reused, never acquired: a handshake here would add a request, and
+   * fail this path for a network that is refused on the search page but not on
+   * the runner pages.
+   */
+  const held =
+    cachedSession && Date.now() - cachedSession.acquiredAt < SESSION_TTL_MS
+      ? cachedSession
+      : null;
+
   const res = await withSlot(() =>
-    outboundFetch(itraProfileUrl(runnerId), {
+    outboundFetch(itraProfileUrl(runnerId, uri), {
       headers: {
         'User-Agent': USER_AGENT,
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
+        ...(held ? { Cookie: held.cookie, Referer: FIND_PAGE } : {}),
       },
       cache: 'no-store',
     }),
   );
-  assertNotBlocked(res);
+  assertNotBlocked(res, 'profile');
   // An id nobody holds is a 404, which is an answer rather than a failure.
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -534,7 +574,7 @@ export async function fetchItraProfile(
   if (!model) {
     throw new Error('ITRA runner page did not contain a runner');
   }
-  const index = pageToIndex(model);
+  const index = pageToIndex(model, uri);
   // A redirect to somebody else would be worse than no answer at all.
   return index && index.runnerId === runnerId ? index : null;
 }
@@ -550,12 +590,13 @@ export async function fetchItraProfile(
 export async function fetchItraIndex(
   name: string,
   runnerId?: number,
+  uri?: string,
 ): Promise<ItraIndex | null> {
   if (runnerId != null) {
     const results = name.trim().length >= 2 ? await searchItra(name, 25) : [];
     return (
       results.find((r) => r.runnerId === runnerId) ??
-      (await fetchItraProfile(runnerId))
+      (await fetchItraProfile(runnerId, uri))
     );
   }
   const results = await searchItra(name, 25);
@@ -566,5 +607,6 @@ export async function fetchItraIndex(
 export function resetItraSession(): void {
   cachedSession = null;
   sessionInFlight = null;
-  blockedUntil = 0;
+  cooldowns.search = { until: 0, message: null };
+  cooldowns.profile = { until: 0, message: null };
 }

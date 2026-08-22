@@ -93,8 +93,10 @@ export async function getRunnerIndexes(
     settle(
       () =>
         force
-          ? stampNow(fetchItraIndex(runner.name, runner.itraRunnerId))
-          : cachedItraIndex(runner.name, runner.itraRunnerId),
+          ? stampNow(
+              fetchItraIndex(runner.name, runner.itraRunnerId, runner.itraUri),
+            )
+          : cachedItraIndex(runner.name, runner.itraRunnerId, runner.itraUri),
       itraAccessNotice,
     ),
     settle(() =>

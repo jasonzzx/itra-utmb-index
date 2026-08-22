@@ -13,6 +13,14 @@ export interface RunnerRef {
   alias?: string;
   /** ITRA's RunnerId. Pins the runner so refreshes can't match the wrong person. */
   itraRunnerId?: number;
+  /**
+   * ITRA's profile slug, `chen.yu.7479205`.
+   *
+   * Optional in a way `utmbUri` is not — the id alone reaches the page, by
+   * redirect. Keeping the slug just spends one request instead of two, which
+   * matters on a host whose bot protection is counting them.
+   */
+  itraUri?: string;
   /** UTMB's numeric id. */
   utmbId?: number;
   /**
@@ -80,6 +88,7 @@ export interface RunnerList {
     name: string;
     alias?: string;
     itraRunnerId?: number;
+    itraUri?: string;
     utmbId?: number;
     utmbUri?: string;
   }>;

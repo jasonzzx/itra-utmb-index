@@ -12,11 +12,14 @@ describe('parseItraUrl', () => {
   it('reads the canonical surname.firstname.id slug', () => {
     expect(parseItraUrl('https://itra.run/RunnerSpace/jornetburgada.kilian.2704')).toEqual({
       id: 2704,
+      // Kept so the fetch goes straight there instead of via a redirect.
+      uri: 'jornetburgada.kilian.2704',
       nameHint: 'Kilian Jornetburgada',
     });
   });
 
   it('reads the older form, whose hint keeps the spaces in a surname', () => {
+    // No canonical slug in this shape, so the id has to take the redirect.
     expect(
       parseItraUrl('https://itra.run/RunnerSpace/JORNET%20BURGADA.Kilian/2704'),
     ).toEqual({ id: 2704, nameHint: 'Kilian JORNET BURGADA' });
@@ -25,6 +28,7 @@ describe('parseItraUrl', () => {
   it('accepts a URL with no scheme, a www host, a query and a trailing slash', () => {
     expect(parseItraUrl('  www.itra.run/RunnerSpace/dauwalter.courtney.30959/?lang=en  ')).toEqual({
       id: 30959,
+      uri: 'dauwalter.courtney.30959',
       nameHint: 'Courtney Dauwalter',
     });
   });
@@ -73,6 +77,13 @@ describe('itraProfileUrl', () => {
     const url = itraProfileUrl(2704);
     expect(url).toBe('https://itra.run/RunnerSpace/-/2704');
     expect(parseItraUrl(url)?.id).toBe(2704);
+  });
+
+  it('goes straight to the canonical slug when there is one', () => {
+    // The id form 302s to exactly this, so using it halves the requests.
+    expect(itraProfileUrl(7479205, 'chen.yu.7479205')).toBe(
+      'https://itra.run/RunnerSpace/chen.yu.7479205',
+    );
   });
 });
 

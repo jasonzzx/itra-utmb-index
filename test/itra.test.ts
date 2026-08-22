@@ -259,6 +259,37 @@ describe('fetchItraIndex', () => {
 });
 
 describe('fetchItraProfile', () => {
+  it('carries the session the same lookup already established', async () => {
+    // A bare cookie-less GET for a megabyte of HTML, sent alongside requests
+    // that do carry a session, is the shape bot protection scores against.
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(fixture))
+      .mockResolvedValueOnce(res(null, { text: RUNNER_PAGE({ ...PAGE_MODEL, runnerId: 12345 }) }));
+
+    await fetchItraIndex('anything', 12345);
+
+    const headers = outboundFetch.mock.calls[2][1].headers;
+    expect(headers.Cookie).toBe('Lang=en');
+    expect(headers.Referer).toBe('https://itra.run/Runners/FindARunner');
+  });
+
+  it('goes without rather than handshaking for one, which would add a request', async () => {
+    outboundFetch.mockResolvedValueOnce(res(null, { text: RUNNER_PAGE(PAGE_MODEL) }));
+    await fetchItraProfile(999001);
+    expect(outboundFetch).toHaveBeenCalledTimes(1);
+    expect(outboundFetch.mock.calls[0][1].headers.Cookie).toBeUndefined();
+  });
+
+  it('goes straight to the canonical slug when it has one', async () => {
+    outboundFetch.mockResolvedValueOnce(res(null, { text: RUNNER_PAGE(PAGE_MODEL) }));
+    const r = await fetchItraProfile(999001, 'chen.yu.999001');
+    expect(outboundFetch.mock.calls[0][0]).toBe(
+      'https://itra.run/RunnerSpace/chen.yu.999001',
+    );
+    expect(r?.profileUrl).toBe('https://itra.run/RunnerSpace/chen.yu.999001');
+  });
+
   it('reads the index off the runner page, agreeing with search on format', async () => {
     outboundFetch.mockResolvedValueOnce(res(null, { text: RUNNER_PAGE(PAGE_MODEL) }));
     const r = await fetchItraProfile(999001);
@@ -521,6 +552,41 @@ describe('request volume', () => {
  * reason never reached the user on a cached lookup — they saw the placeholder.
  * The module records why it refused so callers can report the real cause.
  */
+describe('cooldown scope', () => {
+  it('keeps search working when only the runner page is refused', async () => {
+    // ITRA's bot protection does not refuse the whole site at once: a network
+    // can be served search and still be challenged on the runner pages.
+    // Silencing every runner for a minute over that is a worse outage than the
+    // one that happened.
+    outboundFetch
+      .mockResolvedValueOnce(res(null, { text: TOKEN_PAGE('tok') }))
+      .mockResolvedValueOnce(res(fixture))
+      .mockResolvedValueOnce(res(null, { status: 202 }));
+    await expect(fetchItraIndex('anything', 12345)).rejects.toBeInstanceOf(
+      ItraChallengedError,
+    );
+
+    outboundFetch.mockResolvedValueOnce(res(fixture));
+    const still = await searchItra('anything', 10);
+    expect(still.length).toBeGreaterThan(0);
+  });
+
+  it('still refuses to re-ask the path that said no', async () => {
+    outboundFetch.mockResolvedValueOnce(res(null, { status: 202 }));
+    await expect(fetchItraProfile(999001)).rejects.toBeInstanceOf(ItraChallengedError);
+
+    const before = outboundFetch.mock.calls.length;
+    await expect(fetchItraProfile(999001)).rejects.toBeInstanceOf(ItraAccessError);
+    expect(outboundFetch.mock.calls.length).toBe(before);
+  });
+
+  it('reports the refusal whichever path hit it', async () => {
+    outboundFetch.mockResolvedValueOnce(res(null, { status: 202 }));
+    await expect(fetchItraProfile(999001)).rejects.toBeInstanceOf(ItraChallengedError);
+    expect(itraAccessNotice()).toMatch(/challenge/i);
+  });
+});
+
 describe('itraAccessNotice', () => {
   it('is null when nothing has gone wrong', async () => {
     expect(itraAccessNotice()).toBeNull();

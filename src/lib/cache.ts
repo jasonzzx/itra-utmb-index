@@ -39,11 +39,13 @@ export const utmbTag = (id: number | string, category: UtmbCategory) =>
 export async function cachedItraIndex(
   name: string,
   runnerId?: number,
+  uri?: string,
 ): Promise<Stamped<ItraIndex | null>> {
   'use cache';
+  // The slug addresses the same runner the id does, so it doesn't key the entry.
   cacheTag('indexes', itraTag(runnerId ?? name));
   cacheLife(INDEX_LIFE);
-  const data = await fetchItraIndex(name, runnerId);
+  const data = await fetchItraIndex(name, runnerId, uri);
   return { data, fetchedAt: new Date().toISOString() };
 }
 

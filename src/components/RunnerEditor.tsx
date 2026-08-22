@@ -45,7 +45,7 @@ export function RunnerEditor({
    */
   const itraCurrent =
     runner.itraRunnerId != null
-      ? itraProfileUrl(runner.itraRunnerId)
+      ? itraProfileUrl(runner.itraRunnerId, runner.itraUri)
       : (itra?.profileUrl ?? '');
   const utmbCurrent = runner.utmbUri
     ? utmbProfileUrl(runner.utmbUri)
@@ -67,12 +67,15 @@ export function RunnerEditor({
   function editItra(raw: string) {
     setItraDraft(raw);
     if (!raw.trim()) {
-      if (!strandedBy(runner.utmbId)) onEdit({ itraRunnerId: undefined });
+      if (!strandedBy(runner.utmbId)) {
+        onEdit({ itraRunnerId: undefined, itraUri: undefined });
+      }
       return;
     }
     const parsed = readItraUrl(raw).value;
-    if (parsed && parsed.id !== runner.itraRunnerId) {
-      onEdit({ itraRunnerId: parsed.id });
+    if (!parsed) return;
+    if (parsed.id !== runner.itraRunnerId || parsed.uri !== runner.itraUri) {
+      onEdit({ itraRunnerId: parsed.id, itraUri: parsed.uri });
     }
   }
 

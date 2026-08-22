@@ -72,6 +72,7 @@ export function seedToRefs(seed: RunnerList): RunnerRef[] {
     name: r.name,
     alias: r.alias,
     itraRunnerId: r.itraRunnerId,
+    itraUri: r.itraUri,
     utmbId: r.utmbId,
     utmbUri: r.utmbUri,
   }));

@@ -10,9 +10,12 @@
 export interface ParsedProfileUrl {
   id: number;
   /**
-   * UTMB only: the path segment its profile page is addressed by,
-   * `7388490.yu.chen`. UTMB 404s on the id alone, so this is what makes an
-   * exact lookup possible and is worth storing alongside the id.
+   * The path segment the profile page is addressed by — UTMB's
+   * `7388490.yu.chen`, ITRA's `chen.yu.7479205`.
+   *
+   * UTMB 404s on the id alone, so there it is what makes an exact lookup
+   * possible at all. ITRA redirects the id to it, so there it saves the
+   * redirect. Only the canonical link shape carries one.
    */
   uri?: string;
   /**
@@ -37,8 +40,13 @@ const UTMB_HOST = /(^|\.)utmb\.world$/;
  * ITRA redirects `/RunnerSpace/<anything>/<id>` to that runner's canonical
  * URL, so the slug carries no weight and we don't have to know their name.
  */
-export function itraProfileUrl(runnerId: number): string {
-  return `${ITRA_ORIGIN}/RunnerSpace/-/${runnerId}`;
+export function itraProfileUrl(runnerId: number, uri?: string): string {
+  // The canonical slug is what `/RunnerSpace/-/<id>` redirects to, so using it
+  // when we have it turns two requests into one — worth having on a host whose
+  // bot protection is watching, and it is the URL the link already carried.
+  return uri
+    ? `${ITRA_ORIGIN}/RunnerSpace/${uri}`
+    : `${ITRA_ORIGIN}/RunnerSpace/-/${runnerId}`;
 }
 
 /** A UTMB runner's page. Only the full slug works — the id alone is a 404. */
@@ -127,6 +135,7 @@ export function parseItraUrl(input: string): ParsedProfileUrl | null {
   const rest = dotted.slice(0, -1);
   return {
     id: trailing,
+    uri: last,
     nameHint: rest.length >= 2 ? titleCase([...rest.slice(1), rest[0]]) : titleCase(rest),
   };
 }
